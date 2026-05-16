@@ -1,0 +1,38 @@
+# ====================================================================
+# CONFIGURACIÓN DE GITIGNORE PARA PROYECTO SGT-QR
+# ====================================================================
+
+# 1. Dependencias y archivos pesados de Node (Frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# 2. Entornos virtuales y archivos de Python (Backend)
+backend/venv/
+backend/ENV/
+backend/env/
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.pytest_cache/
+
+# 3. Archivos del Sistema Operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 4. Archivos de configuración del Editor (Opcional)
+.vscode/
+.idea/
+
+# 5. SEGURIDAD CRÍTICA: Archivos de variables de entorno - NUNCA SUBIR
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
