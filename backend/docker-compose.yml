@@ -1,8 +1,24 @@
 services:
   api:
     build: .
+    env_file:
+      - .env
     ports:
-      - "5000:5000"
+      - "5001:5001"
     volumes:
-      - .:/app
+      - ./app:/app/app
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: unless-stopped
+    networks:
+      - sgtqr_net
+
+networks:
+  sgtqr_net:
+    enable_ipv6: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+        - subnet: 2001:db8:1::/64
