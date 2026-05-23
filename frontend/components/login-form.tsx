@@ -1,27 +1,110 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { Eye, EyeOff, Bus, QrCode } from "lucide-react"
+import { AlertCircle, Bus, CheckCircle2, Eye, EyeOff, QrCode } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001"
+
+type LoginStatus = "idle" | "success" | "error"
+
+async function getLoginErrorMessage(response: Response): Promise<string> {
+  try {
+    const data = await response.json()
+    if (typeof data.detail === "string") {
+      return data.detail
+    }
+    if (Array.isArray(data.detail)) {
+      return "Completa usuario y contraseña."
+    }
+  } catch {
+    // respuesta no JSON
+  }
+
+  if (response.status === 422) {
+    return "Completa usuario y contraseña."
+  }
+  if (response.status === 401) {
+    return "Usuario o contraseña incorrectos."
+  }
+  if (response.status === 503) {
+    return "No se puede conectar con el servidor. Intenta más tarde."
+  }
+
+  return "No se pudo iniciar sesión. Intenta de nuevo."
+}
 
 export function LoginForm() {
+  const router = useRouter()
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [status, setStatus] = useState<LoginStatus>("idle")
+  const [message, setMessage] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    setStatus("idle")
+    setMessage("")
+
+    const trimmedUsername = username.trim()
+    if (!trimmedUsername || !password) {
+      setStatus("error")
+      setMessage("Completa usuario y contraseña.")
+      return
+    }
+
     setIsLoading(true)
-    // Simulate login - replace with actual auth logic
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsLoading(false)
+
+    try {
+      const formData = new URLSearchParams()
+      formData.append("username", trimmedUsername)
+      formData.append("password", password)
+
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorMessage = await getLoginErrorMessage(response)
+        setStatus("error")
+        setMessage(errorMessage)
+        return
+      }
+
+      const data = await response.json()
+
+      localStorage.setItem("access_token", data.access_token)
+      localStorage.setItem("user_rol", data.rol)
+
+      setStatus("success")
+      setMessage("Acceso confirmado. Redirigiendo...")
+
+      setTimeout(() => {
+        router.push("/admin/dashboard")
+      }, 800)
+    } catch {
+      setStatus("error")
+      setMessage(
+        "No se pudo conectar con el servidor. Verifica que el backend esté en ejecución."
+      )
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
     <div className="w-full max-w-md mx-auto">
-      {/* Logo and Branding */}
       <div className="flex flex-col items-center mb-8">
         <div className="relative w-28 h-28 md:w-32 md:h-32 mb-4">
           <Image
@@ -40,9 +123,7 @@ export function LoginForm() {
         </p>
       </div>
 
-      {/* Login Card */}
       <div className="bg-card rounded-2xl shadow-xl border border-border p-6 md:p-8">
-        {/* Feature Icons */}
         <div className="flex justify-center gap-6 mb-6">
           <div className="flex items-center gap-2 text-secondary">
             <Bus className="w-5 h-5" />
@@ -54,26 +135,48 @@ export function LoginForm() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* User Field */}
+        {status !== "idle" && message && (
+          <Alert
+            variant={status === "error" ? "destructive" : "default"}
+            className={`mb-5 ${
+              status === "success"
+                ? "border-green-500/50 bg-green-500/10 text-green-800 dark:text-green-300"
+                : ""
+            }`}
+          >
+            {status === "success" ? (
+              <CheckCircle2 className="text-green-600 dark:text-green-400" />
+            ) : (
+              <AlertCircle />
+            )}
+            <AlertTitle>
+              {status === "success" ? "Acceso confirmado" : "Acceso denegado"}
+            </AlertTitle>
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-5">
           <div className="space-y-2">
             <Label
-              htmlFor="email"
+              htmlFor="username"
               className="text-foreground font-medium text-base"
             >
               Usuario o Correo
             </Label>
             <Input
-              id="email"
+              id="username"
               type="text"
               placeholder="usuario@ejemplo.com"
               autoComplete="username"
               required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={isLoading}
               className="h-14 text-base px-4 bg-input border-border focus:border-primary focus:ring-primary/20 focus:ring-2 transition-all placeholder:text-muted-foreground/60"
             />
           </div>
 
-          {/* Password Field */}
           <div className="space-y-2">
             <Label
               htmlFor="password"
@@ -88,6 +191,9 @@ export function LoginForm() {
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
                 className="h-14 text-base px-4 pr-12 bg-input border-border focus:border-primary focus:ring-primary/20 focus:ring-2 transition-all placeholder:text-muted-foreground/60"
               />
               <button
@@ -105,7 +211,6 @@ export function LoginForm() {
             </div>
           </div>
 
-          {/* Submit Button */}
           <Button
             type="submit"
             disabled={isLoading}
@@ -141,7 +246,6 @@ export function LoginForm() {
           </Button>
         </form>
 
-        {/* Forgot Password Link */}
         <div className="mt-6 text-center">
           <a
             href="#"
@@ -152,7 +256,6 @@ export function LoginForm() {
         </div>
       </div>
 
-      {/* Footer */}
       <p className="text-center text-xs text-muted-foreground mt-6">
         © {new Date().getFullYear()} Grupo Turístico. Todos los derechos reservados.
       </p>
