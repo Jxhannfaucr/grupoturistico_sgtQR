@@ -13,8 +13,14 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain_password: str, stored_password: str) -> bool:
+    if not stored_password:
+        return False
+    # bcrypt: $2a$, $2b$, $2y$
+    if stored_password.startswith(("$2a$", "$2b$", "$2y$")):
+        return pwd_context.verify(plain_password, stored_password)
+    # La tabla usuarios guarda contraseñas en texto plano
+    return plain_password == stored_password
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

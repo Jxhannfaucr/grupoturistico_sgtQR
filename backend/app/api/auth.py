@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token, verify_password
 from app.database import get_db
-from app.models.user import User
+from app.models.usuarios import Usuario
 
 router = APIRouter(prefix="/auth", tags=["autenticación"])
 
 
-def get_user_by_username(db: Session, username: str) -> User | None:
-    return db.execute(select(User).where(User.username == username)).scalar_one_or_none()
+def get_user_by_username(db: Session, username: str) -> Usuario | None:
+    return db.execute(select(Usuario).where(Usuario.username == username)).scalar_one_or_none()
 
 
 @router.post("/login")

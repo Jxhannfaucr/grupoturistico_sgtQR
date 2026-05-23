@@ -15,8 +15,8 @@ def _build_database_url() -> str:
     password = quote_plus(os.getenv("DB_PASSWORD", ""))
     name = os.getenv("DB_NAME", "postgres")
     sslmode = os.getenv("DB_SSLMODE", "require")
-
-    return f"postgresql://{user}:{password}@{host}:{port}/{name}?sslmode={sslmode}"
+    
+    return f"postgresql://{user}:{password}@{host}:{port}/{name}"
 
 
 DATABASE_URL = _build_database_url()
