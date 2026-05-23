@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.auth import router as auth_router
+from app.routes.auth import router as auth_router
+from app.routes.viajes import router as viajes_router
 
 app = FastAPI(
     title="Grupo Turistico SGT-QR",
@@ -19,6 +20,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/api")
 
+app.include_router(viajes_router, prefix="/api")
 
 @app.get("/")
 def health_check():

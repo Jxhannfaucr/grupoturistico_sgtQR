@@ -1,3 +1,4 @@
+# app/database.py
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -20,6 +21,12 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+from app.models.usuarios import Usuario
+from app.models.bus import Bus
+from app.models.viaje import Viaje
+from app.models.token import Token
+from app.models.asiento import Asiento
+from app.models.ticket import Ticket
 
 def get_db():
     db = SessionLocal()

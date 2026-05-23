@@ -1,18 +1,42 @@
+# app/routes/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
+from jose import JWTError, jwt
 
 from app.core.security import create_access_token, verify_password
+from app.core.config import SECRET_KEY, ALGORITHM
 from app.database import get_db
 from app.models.usuarios import Usuario
 
 router = APIRouter(prefix="/auth", tags=["autenticación"])
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
 
 def get_user_by_username(db: Session, username: str) -> Usuario | None:
     return db.execute(select(Usuario).where(Usuario.username == username)).scalar_one_or_none()
+
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> dict:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Token inválido")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    user = get_user_by_username(db, username)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+
+    return {"id": user.id, "username": user.username, "rol": user.rol}
 
 
 @router.post("/login")
