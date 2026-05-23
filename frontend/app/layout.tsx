@@ -1,44 +1,38 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import './globals.css'
+// app/layout.tsx
+import type { Metadata, Viewport } from "next"
+import { Onest } from "next/font/google"
+import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const onest = Onest({ 
+  subsets: ["latin"],
+  variable: "--font-onest",
+})
 
 export const metadata: Metadata = {
-  title: 'SGT-QR | Sistema de Gestión de Tickets',
-  description: 'Sistema de Gestión de Tickets de Autobuses con validación QR - Grupo Turístico',
-  generator: 'v0.app',
+  title: "SGT-QR | Sistema de Gestión de Tickets",
+  description: "Sistema de gestión de tickets y abordaje para excursiones en bus",
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: "/images/logo.jpeg",
   },
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#2563eb",
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
     <html lang="es">
-      <body className="font-sans antialiased bg-background">
+      <body className={`${onest.variable} font-[family-name:var(--font-onest)] antialiased min-h-screen bg-gray-50 text-gray-900`}>
         {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )
