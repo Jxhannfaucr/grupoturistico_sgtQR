@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
+import Swal from 'sweetalert2';
 import {
   Bus,
   LayoutDashboard,
@@ -75,11 +76,29 @@ export default function AdminLayout({
   const pathname = usePathname()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem("access_token")
+
     if (!token) {
-      router.push("/login")
+      setIsAuthorized(false)
+      Swal.fire({
+        title: "Acceso Restringido",
+        text: "Solo administrador autorizado. Por favor, inicia sesión.",
+        icon: "warning",
+        confirmButtonColor: "#171717",
+        confirmButtonText: "Ir al Login",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        backdrop: "rgba(0, 0, 0, 0.45)",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          router.push("/")
+        }
+      })
+    } else {
+      setIsAuthorized(true)
     }
   }, [router])
 
@@ -96,7 +115,7 @@ export default function AdminLayout({
   const handleLogout = () => {
     localStorage.removeItem("access_token")
     localStorage.removeItem("user_rol")
-    router.push("/login")
+    router.push("/")
   }
 
   const toggleExpand = (label: string) => {
@@ -112,8 +131,17 @@ export default function AdminLayout({
     return pathname.startsWith(href)
   }
 
+  const isContentLocked = isAuthorized !== true
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div
+      className={`min-h-screen bg-gray-50 transition-[filter] duration-200 ${
+        isContentLocked
+          ? "blur-md brightness-90 pointer-events-none select-none"
+          : ""
+      }`}
+      aria-hidden={isContentLocked}
+    >
       {/* Overlay mobile */}
       {isSidebarOpen && (
         <div
