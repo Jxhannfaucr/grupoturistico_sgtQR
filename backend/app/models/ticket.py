@@ -16,6 +16,5 @@ class Ticket(Base):
     creado_en = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     email_pasajero = Column(String, nullable=True)
     
-    # Agrega estas relaciones
     token = relationship("Token", back_populates="tickets")
     asiento = relationship("Asiento") 

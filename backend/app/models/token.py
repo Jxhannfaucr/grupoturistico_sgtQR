@@ -16,6 +16,5 @@ class Token(Base):
     creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     creado_en = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    # ── Relaciones ──────────────────────────────────────────
     viaje = relationship("Viaje", back_populates="tokens")
     tickets = relationship("Ticket", back_populates="token", cascade="all, delete-orphan")
