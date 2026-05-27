@@ -19,4 +19,4 @@ class Viaje(Base):
     bus = relationship("Bus")
 
     asientos = relationship("Asiento", backref="viaje")
-    tokens = relationship("Token", backref="viaje")
+    tokens = relationship("Token", back_populates="viaje")
