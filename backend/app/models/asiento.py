@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum as SQLEnum
 from datetime import datetime, timezone
 from app.database import Base
+from sqlalchemy.orm import relationship
 import enum
 
 class EstadoAsiento(str, enum.Enum):
@@ -26,3 +27,7 @@ class Asiento(Base):
     )
     bloqueado_hasta = Column(DateTime, nullable=True)
     token_id = Column(Integer, ForeignKey("tokens.id"), nullable=True)
+
+    ticket = relationship("Ticket", back_populates="asiento", uselist=False)
+    viaje = relationship("Viaje", back_populates="asientos")
+    token = relationship("Token")

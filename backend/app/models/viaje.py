@@ -17,6 +17,5 @@ class Viaje(Base):
     creado_en = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     bus = relationship("Bus")
-
-    asientos = relationship("Asiento", backref="viaje")
+    asientos = relationship("Asiento", back_populates="viaje")
     tokens = relationship("Token", back_populates="viaje")
