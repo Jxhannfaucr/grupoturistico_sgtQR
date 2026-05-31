@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 
 # devolver los viajes asignados cuando se consulta un bus específico.
@@ -16,6 +16,10 @@ class ViajeAsignadoSimple(BaseModel):
 class BusCreate(BaseModel):
     nombre: str = Field(..., min_length=2, max_length=100, description="Nombre o identificador interno del bus")
     capacidad_total: int = Field(..., gt=0, description="Cantidad máxima de asientos de pasajeros")
+    tipo_plantilla: Literal["2x2_estandar", "3x2_ancho", "2x2_refuerzo"] = Field(
+        default="2x2_estandar", 
+        description="Distribución física de los asientos"
+    )
 
 class BusUpdate(BaseModel):
     nombre: Optional[str] = Field(None, min_length=2, max_length=100)

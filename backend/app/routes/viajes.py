@@ -195,6 +195,49 @@ def eliminar_viaje(
     
     return {"message": "Viaje eliminado exitosamente"}
 
+@router.get("/publico/{viaje_id}")
+def obtener_viaje_publico(
+    viaje_id: int, 
+    db: Session = Depends(get_db)
+):
+    """
+    ENDPOINT PÚBLICO: Sin validación de usuario (current_user).
+    Provee los datos necesarios para la pantalla de selección de asientos del cliente.
+    """
+    viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
+    
+    if not viaje:
+        raise HTTPException(
+            status_code=404, 
+            detail="El enlace del viaje no es válido o ha expirado."
+        )
+    
+    # 1. Obtener capacidad total del bus asignado
+    total_asientos = viaje.bus.capacidad_total if viaje.bus else 0
+    
+    # 2. Buscar qué asientos ya no están disponibles
+    # ¡ESTAS SON LAS LÍNEAS QUE FALTABAN EN TU CÓDIGO!
+    asientos_reservados_query = db.query(Asiento.numero).filter(
+        Asiento.viaje_id == viaje_id,
+        Asiento.estado == "reservado"
+    ).all()
+    asientos_ocupados = [str(asiento[0]) for asiento in asientos_reservados_query]
+    
+    # 3. Extraer el tipo de plantilla (si existe, si no fallback a 2x2 estándar)
+    tipo_plantilla = viaje.bus.tipo_plantilla if viaje.bus and hasattr(viaje.bus, 'tipo_plantilla') else "2x2_estandar"
+    
+    # 4. Retornar el diccionario completo
+    return {
+        "id": viaje.id,
+        "nombre": viaje.nombre,
+        "fecha_salida": viaje.fecha_salida.isoformat() if viaje.fecha_salida else None,
+        "hora_salida": viaje.hora_salida.strftime("%H:%M") if viaje.hora_salida else None,
+        "lugar_abordaje": viaje.lugar_abordaje,
+        "precio": float(viaje.precio) if viaje.precio else 0.0,
+        "total_asientos": total_asientos,
+        "asientos_ocupados": asientos_ocupados,
+        "tipo_plantilla": tipo_plantilla
+    }
 # ============================================
 # ESTADÍSTICAS
 # ============================================

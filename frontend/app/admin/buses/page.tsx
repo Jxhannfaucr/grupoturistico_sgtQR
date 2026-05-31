@@ -48,6 +48,13 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -55,6 +62,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+
 import { cn } from "@/lib/utils"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001"
@@ -64,6 +72,7 @@ type Bus = {
   id: number
   nombre: string
   capacidad_total: number
+  tipo_plantilla?: string
   configuracion_json?: Record<string, unknown> | null
   creado_en?: string
 }
@@ -75,6 +84,9 @@ const busSchema = z.object({
     .number()
     .int("Debe ser un número entero")
     .positive("La capacidad debe ser mayor a 0"),
+  tipo_plantilla: z.enum(["2x2_estandar", "3x2_ancho", "2x2_refuerzo"], {
+    required_error: "Seleccione una distribución",
+  }),
 })
 
 type BusFormValues = z.infer<typeof busSchema>
@@ -386,6 +398,11 @@ export default function BusesPage() {
                           <p className="text-xs text-muted-foreground">
                             <Hash className="mr-0.5 inline h-3 w-3" />
                             {bus.id}
+                            {bus.tipo_plantilla && (
+                              <span className="ml-2 uppercase tracking-wide">
+                                • {bus.tipo_plantilla.replace("_", " ")}
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -499,7 +516,7 @@ function StatCard({
 }
 
 // ═══════════════════════════════════════════════════════════
-// FORM DIALOG (solo nombre + capacidad_total)
+// FORM DIALOG
 // ═══════════════════════════════════════════════════════════
 function BusFormDialog({
   open,
@@ -521,6 +538,7 @@ function BusFormDialog({
     defaultValues: {
       nombre: "",
       capacidad_total: 0,
+      tipo_plantilla: "2x2_estandar",
     },
   })
 
@@ -530,11 +548,14 @@ function BusFormDialog({
         form.reset({
           nombre: bus.nombre,
           capacidad_total: bus.capacidad_total,
+          // Fallback a "2x2_estandar" si el bus se creó antes de implementar las plantillas
+          tipo_plantilla: (bus.tipo_plantilla as any) || "2x2_estandar",
         })
       } else {
         form.reset({
           nombre: "",
           capacidad_total: 0,
+          tipo_plantilla: "2x2_estandar",
         })
       }
     }
@@ -575,27 +596,52 @@ function BusFormDialog({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="capacidad_total"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Capacidad (asientos)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Ej. 45"
-                      className="rounded-xl"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="capacidad_total"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Capacidad</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Ej. 45"
+                        className="rounded-xl"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <DialogFooter>
+              <FormField
+                control={form.control}
+                name="tipo_plantilla"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Distribución</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Seleccione..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="2x2_estandar">2x2 Estándar</SelectItem>
+                        <SelectItem value="3x2_ancho">3x2 Ancho</SelectItem>
+                        <SelectItem value="2x2_refuerzo">2x2 + Refuerzo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter className="pt-4">
               <Button
                 type="button"
                 variant="outline"

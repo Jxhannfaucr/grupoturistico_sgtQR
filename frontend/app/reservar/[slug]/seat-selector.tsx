@@ -10,6 +10,7 @@ type SeatSelectorProps = {
   selected: string[]
   maxSelectable: number
   precio: number
+  tipoPlantilla: string
   onToggle: (numero: string) => void
   onContinue: () => void
 }
@@ -29,6 +30,7 @@ export function SeatSelector({
   selected,
   maxSelectable,
   precio,
+  tipoPlantilla,
   onToggle,
   onContinue,
 }: SeatSelectorProps) {
@@ -37,13 +39,32 @@ export function SeatSelector({
     [totalAsientos]
   )
 
+  // LÓGICA MATEMÁTICA DE PLANTILLAS
   const rows = useMemo(() => {
-    const result: string[][] = []
-    for (let i = 0; i < seats.length; i += 4) {
-      result.push(seats.slice(i, i + 4))
+    const result: { layout: string; seats: string[] }[] = []
+    let i = 0
+    
+    while (i < seats.length) {
+      const asientosRestantes = seats.length - i
+
+      // Plantilla 3: Refuerzo trasero (Últimos 5 asientos van seguidos sin pasillo)
+      if (tipoPlantilla === '2x2_refuerzo' && asientosRestantes === 5) {
+        result.push({ layout: 'full_5', seats: seats.slice(i, i + 5) })
+        i += 5
+      } 
+      // Plantilla 2: Bus Ancho (3 a la izquierda, 2 a la derecha)
+      else if (tipoPlantilla === '3x2_ancho') {
+        result.push({ layout: '3+2', seats: seats.slice(i, i + 5) })
+        i += 5
+      } 
+      // Plantilla 1: Estándar (2 a la izquierda, 2 a la derecha)
+      else {
+        result.push({ layout: '2+2', seats: seats.slice(i, i + 4) })
+        i += 4
+      }
     }
     return result
-  }, [seats])
+  }, [seats, tipoPlantilla])
 
   return (
     <div
@@ -240,8 +261,8 @@ export function SeatSelector({
             </div>
           </div>
 
-          {/* Área de asientos */}
-          <div style={{ padding: "20px 16px 16px" }}>
+        {/* Área de asientos */}
+        <div style={{ padding: "20px 16px 16px" }}>
             <div
               style={{
                 position: "relative",
@@ -250,13 +271,14 @@ export function SeatSelector({
                 gap: 12,
               }}
             >
-              {/* Pasillo central */}
+              {/* Pasillo central fijo con alineación dinámica */}
               <div
                 style={{
                   position: "absolute",
                   top: 0,
                   bottom: 0,
-                  left: "50%",
+                  // Si es 3x2, el centro del pasillo se desplaza 28px a la derecha
+                  left: tipoPlantilla === '3x2_ancho' ? "calc(50% + 28px)" : "50%",
                   transform: "translateX(-50%)",
                   width: 32,
                   background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
@@ -274,42 +296,50 @@ export function SeatSelector({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 40,
+                    gap: row.layout === 'full_5' ? 10 : 40, 
                     animationDelay: `${0.15 + rowIdx * 0.04}s`,
+                    zIndex: 10 // Pasa por encima del pasillo visual
                   }}
                 >
-                  {/* Par izquierdo */}
-                  <div style={{ display: "flex", gap: 10 }}>
-                    {row.slice(0, 2).map((num) => (
-                      <SeatButton
-                        key={num}
-                        numero={num}
-                        isOccupied={ocupados.includes(num)}
-                        isSelected={selected.includes(num)}
-                        onClick={() => onToggle(num)}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Par derecho */}
-                  <div style={{ display: "flex", gap: 10 }}>
-                    {row.slice(2, 4).map((num) => (
-                      <SeatButton
-                        key={num}
-                        numero={num}
-                        isOccupied={ocupados.includes(num)}
-                        isSelected={selected.includes(num)}
-                        onClick={() => onToggle(num)}
-                      />
-                    ))}
-                    {row.length < 4 &&
-                      Array.from({ length: 4 - row.length }).map((_, i) => (
-                        <div
-                          key={`empty-${i}`}
-                          style={{ width: 46, height: 48 }}
-                        />
+                  
+                  {/* RENDERIZADO CONDICIONAL SEGÚN LA PLANTILLA DE LA FILA */}
+                  {row.layout === 'full_5' ? (
+                    // FILA TRASERA DE REFUERZO (5 asientos pegados)
+                    <div style={{ display: "flex", gap: 10, background: "#fff", padding: "0 4px", borderRadius: 8 }}>
+                      {row.seats.map((num) => (
+                        <SeatButton key={num} numero={num} isOccupied={ocupados.includes(num)} isSelected={selected.includes(num)} onClick={() => onToggle(num)} />
                       ))}
-                  </div>
+                    </div>
+                  ) : (
+                    // FILAS NORMALES CON PASILLO (2+2 o 3+2)
+                    <>
+                      {/* Lado Izquierdo (Mete 3 si es ancho, 2 si es estándar) */}
+                      <div style={{ display: "flex", gap: 10 }}>
+                        {row.seats.slice(0, row.layout === '3+2' ? 3 : 2).map((num) => (
+                          <SeatButton key={num} numero={num} isOccupied={ocupados.includes(num)} isSelected={selected.includes(num)} onClick={() => onToggle(num)} />
+                        ))}
+                      </div>
+
+                      {/* Lado Derecho (Mete el resto de la fila) */}
+                      <div style={{ display: "flex", gap: 10 }}>
+                        {row.seats.slice(row.layout === '3+2' ? 3 : 2, 5).map((num) => (
+                          <SeatButton key={num} numero={num} isOccupied={ocupados.includes(num)} isSelected={selected.includes(num)} onClick={() => onToggle(num)} />
+                        ))}
+                        
+                        {/* Relleno visual si la última fila queda incompleta */}
+                        {row.layout === '2+2' && row.seats.length > 2 && row.seats.length < 4 &&
+                          Array.from({ length: 4 - row.seats.length }).map((_, i) => (
+                            <div key={`empty-22-${i}`} style={{ width: 46, height: 48 }} />
+                          ))
+                        }
+                        {row.layout === '3+2' && row.seats.length > 3 && row.seats.length < 5 &&
+                          Array.from({ length: 5 - row.seats.length }).map((_, i) => (
+                            <div key={`empty-32-${i}`} style={{ width: 46, height: 48 }} />
+                          ))
+                        }
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

@@ -13,3 +13,4 @@ class Bus(Base):
     capacidad_total = Column(Integer, nullable=False)
     configuracion_json = Column(JSONB)
     creado_en = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    tipo_plantilla = Column(String)
