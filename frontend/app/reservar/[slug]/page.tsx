@@ -33,7 +33,12 @@ export type PasajeroForm = {
 // ─── Helpers ───────────────────────────────────────────────
 function formatFechaBonita(fecha?: string | null) {
   if (!fecha) return ""
-  const d = new Date(fecha + "T00:00:00")
+  
+  // Si la fecha ya trae la hora desde la BD (tiene una 'T'), la usamos tal cual.
+  // Si solo viene "YYYY-MM-DD", le agregamos el tiempo neutral para evitar desfases de zona horaria.
+  const dateString = fecha.includes('T') ? fecha : `${fecha}T00:00:00`
+  const d = new Date(dateString)
+
   return d.toLocaleDateString("es-CR", {
     weekday: "long",
     day: "numeric",
@@ -251,6 +256,11 @@ export default function ReservarPage() {
             tipoPlantilla={viaje.tipo_plantilla}
             onToggle={toggleSeat}
             onContinue={goToForm}
+
+            nombreViaje={viaje.nombre}
+            ruta={viaje.lugar_abordaje || ""}
+            fecha={formatFechaBonita(viaje.fecha_salida)} // Asumiendo que usas tu función nativa
+            horaSalida={viaje.hora_salida || ""}
           />
         )}
 
