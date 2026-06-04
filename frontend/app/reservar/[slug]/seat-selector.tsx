@@ -318,7 +318,7 @@ export function SeatSelector({
               "relative rounded-[36px] overflow-hidden",
               "border-[3px] border-slate-200 bg-white",
               "shadow-[0_20px_60px_-12px_rgba(0,0,0,0.14),0_0_0_1px_rgba(0,0,0,0.03)]",
-              is3x2 ? "w-[300px]" : "w-[240px]"
+              is3x2 ? "w-[325px]" : "w-[300px]"
             )}
           >
             <div className="absolute top-5 -left-2 w-2.5 h-7 rounded-l-md bg-slate-200 border border-slate-300 border-r-0 z-20" />
@@ -339,8 +339,9 @@ export function SeatSelector({
               </div>
             </div>
 
-            <div className="pt-5 pb-4 px-5">
-              <div className="relative flex flex-col gap-3">
+            {/* ── Zona de asientos (MODIFICADA PARA EMPUJAR A LOS BORDES) ── */}
+            <div className={cn("pt-5 pb-4 w-full", is3x2 ? "px-5" : "px-6")}>
+              <div className="relative flex flex-col gap-3 w-full">
                 <div
                   className="absolute top-0 bottom-0 w-7 rounded-2xl -z-0 bg-gradient-to-b from-slate-100 to-slate-50 border border-slate-200/60"
                   style={{
@@ -352,9 +353,14 @@ export function SeatSelector({
                 {rows.map((row, rowIdx) => (
                   <div
                     key={rowIdx}
-                    className="ss-row-anim relative flex items-center justify-center z-10"
+                    className={cn(
+                      "ss-row-anim relative flex items-center z-10 w-full",
+                      // 2x2 mantiene su diseño a los bordes, 3x2 y refuerzo se centran
+                      row.layout === "2+2" ? "justify-between" : "justify-center"
+                    )}
                     style={{
-                      gap: row.layout === "full_5" ? 8 : 36,
+                      // Aplicamos el tamaño exacto del pasillo solo al 3x2 (36px o 40px)
+                      gap: row.layout === "3+2" ? 50 : (row.layout === "full_5" ? 8 : undefined),
                       animationDelay: `${0.1 + rowIdx * 0.045}s`,
                     }}
                   >
