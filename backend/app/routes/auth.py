@@ -36,7 +36,7 @@ def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
-    return {"id": user.id, "username": user.username, "rol": user.rol}
+    return {"id": user.id, "username": user.username, "rol": user.rol.nombre}
 
 
 @router.post("/login")
@@ -64,7 +64,7 @@ def login(
 
     token_payload = {
         "sub": user.username,
-        "rol": user.rol,
+        "rol": user.rol.nombre,
     }
 
     access_token = create_access_token(data=token_payload)
@@ -72,5 +72,5 @@ def login(
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "rol": user.rol,
+        "rol": user.rol.nombre,
     }

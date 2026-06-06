@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
-from app.models.usuario import Usuario
+from app.models.usuarios import Usuario
 from app.schemas.usuario import UsuarioCreate, UsuarioUpdate
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -58,4 +58,15 @@ def delete_usuario(db: Session, usuario_id: int):
         return None
     db.delete(db_user)
     db.commit()
+    return db_user
+
+def create_usuario(db: Session, data: UsuarioCreate):
+    db_user = Usuario(
+        username=data.username,
+        password_hash=hash_password(data.password),
+        rol_id=data.rol_id,
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
     return db_user
