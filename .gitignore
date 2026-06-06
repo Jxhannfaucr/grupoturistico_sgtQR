@@ -13,22 +13,24 @@ frontend/yarn-error.log*
 backend/venv/
 backend/ENV/
 backend/env/
-backend/__pycache__/
-backend/*.pyc
-backend/*.pyo
-backend/*.pyd
 backend/.pytest_cache/
 
-# 3. Archivos del Sistema Operativo
+# 3. Python compiled files (todos los niveles)
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# 4. Archivos del Sistema Operativo
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# 4. Archivos de configuración del Editor (Opcional)
+# 5. Archivos de configuración del Editor (Opcional)
 .vscode/
 .idea/
 
-# 5. SEGURIDAD CRÍTICA: Archivos de variables de entorno - NUNCA SUBIR
+# 6. SEGURIDAD CRÍTICA: Archivos de variables de entorno - NUNCA SUBIR
 .env
 .env.local
 .env.development.local

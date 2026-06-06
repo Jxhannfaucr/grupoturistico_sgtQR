@@ -6,6 +6,7 @@ from app.routes.viajes import router as viajes_router
 from app.routes.buses import router as buses_router
 from app.routes.token import router as token_router
 from app.routes.ticket import router as ticket_router
+from app.api.routes import usuarios
 
 
 app = FastAPI(
@@ -31,6 +32,8 @@ app.include_router(buses_router, prefix="/api")
 app.include_router(token_router, prefix="/api")
 
 app.include_router(ticket_router, prefix="/api")
+
+api_router.include_router(usuarios.router, prefix="/api")
 
 @app.get("/")
 def health_check():
