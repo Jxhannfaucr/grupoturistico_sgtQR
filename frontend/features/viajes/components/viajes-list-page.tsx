@@ -109,7 +109,7 @@ export function ViajesListPage() {
           </Button>
         }
       >
-        <ViajesTable viajes={data} />
+        <ViajesTable viajes={data} onRefresh={reload} />
       </CrudAsyncState>
     </AdminPageShell>
   )

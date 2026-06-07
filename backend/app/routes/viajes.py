@@ -177,23 +177,33 @@ def eliminar_viaje(
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado")
     
+    # 1. Verificamos si hay impacto financiero/operativo
     tickets = db.query(Ticket).join(Asiento).filter(
         Asiento.viaje_id == viaje_id
     ).count()
     
+    # 2. SOFT DELETE (Cancelación Lógica)
     if tickets > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se puede eliminar, tiene {tickets} tickets emitidos"
-        )
+        # Bloqueamos el borrado físico y cambiamos el estado
+        viaje.estado = "cancelado"
+        db.commit()
+        return {
+            "message": f"El viaje tiene {tickets} tickets vendidos. Se ha marcado como CANCELADO en lugar de eliminarse.",
+            "accion": "soft_delete",
+            "estado_actual": "cancelado"
+        }
     
+    # 3. HARD DELETE (Borrado Físico - Solo si tickets == 0)
     from app.models.token import Token
     db.query(Token).filter(Token.viaje_id == viaje_id).delete(synchronize_session=False)
     db.query(Asiento).filter(Asiento.viaje_id == viaje_id).delete(synchronize_session=False)
     db.delete(viaje)
     db.commit()
     
-    return {"message": "Viaje eliminado exitosamente"}
+    return {
+        "message": "Viaje eliminado físicamente exitosamente.",
+        "accion": "hard_delete"
+    }
 
 @router.get("/publico/{viaje_id}")
 def obtener_viaje_publico(
@@ -216,7 +226,6 @@ def obtener_viaje_publico(
     total_asientos = viaje.bus.capacidad_total if viaje.bus else 0
     
     # 2. Buscar qué asientos ya no están disponibles
-    # ¡ESTAS SON LAS LÍNEAS QUE FALTABAN EN TU CÓDIGO!
     asientos_reservados_query = db.query(Asiento.numero).filter(
         Asiento.viaje_id == viaje_id,
         Asiento.estado == "reservado"
@@ -282,6 +291,8 @@ def stats_viaje(
 # HELPERS
 # ============================================
 def formatear_viaje(viaje: Viaje) -> dict:
+    asientos_vendidos = len([a for a in viaje.asientos if getattr(a, "estado", "") == "reservado"])
+    
     return {
         "id": viaje.id,
         "nombre": viaje.nombre,
@@ -298,5 +309,7 @@ def formatear_viaje(viaje: Viaje) -> dict:
         "creado_por": viaje.creado_por,
         "creado_en": viaje.creado_en.isoformat() if viaje.creado_en else None,
         "tokens_count": len(viaje.tokens) if viaje.tokens else 0,
-        "asientos_count": len(viaje.asientos) if viaje.asientos else 0
+        "asientos_count": len(viaje.asientos) if viaje.asientos else 0,
+        "asientos_vendidos_count": asientos_vendidos,
+        "estado": getattr(viaje, "estado", "activo")
     }

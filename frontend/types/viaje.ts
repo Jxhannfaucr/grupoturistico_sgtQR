@@ -17,6 +17,8 @@ export type Viaje = {
   creado_en: string
   tokens_count: number
   asientos_count: number
+  asientos_vendidos_count: number
+  estado?: string
 }
 
 export type ViajeEstadoFiltro = "todos" | "proximos" | "pasados"
