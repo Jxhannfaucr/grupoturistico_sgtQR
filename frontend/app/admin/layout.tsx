@@ -17,6 +17,7 @@ import {
   LogOut,
   ChevronRight,
   User,
+  Users,
   PlusCircle,
   List,
   ScanLine,
@@ -59,6 +60,11 @@ const navigation = [
     label: "Tickets",
     href: "/admin/tickets",
     icon: Ticket,
+  },
+  {
+    label: "Administrar Usuarios",
+    href: "/admin/usuarios",
+    icon: Users,
   },
   {
     label: "Escanear QR",
