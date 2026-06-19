@@ -42,8 +42,8 @@ def update_usuario(db: Session, usuario_id: int, data: UsuarioUpdate):
 
     if data.username is not None:
         db_user.username = data.username
-    if data.rol is not None:
-        db_user.rol = data.rol
+    if data.rol_id is not None:
+        db_user.rol_id = data.rol_id
     if data.password is not None:
         db_user.password_hash = hash_password(data.password)
 

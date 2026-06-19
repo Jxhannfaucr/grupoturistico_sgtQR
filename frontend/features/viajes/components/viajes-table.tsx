@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react" // 1. Importamos useMemo
 import Link from "next/link"
 import {
   Bus,
@@ -46,12 +47,24 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001"
 
 type ViajesTableProps = {
   viajes: Viaje[]
-  onRefresh?: () => void
+  onRefresh: () => void
 }
 
 export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
   
-  // 1. Manejador para copiar el link público (con formato Slug amigable)
+  // 1. LÓGICA DE ORDENAMIENTO (De más reciente a más viejo)
+  const sortedViajes = useMemo(() => {
+    return [...viajes].sort((a, b) => {
+      // Combinamos fecha y hora para crear un timestamp exacto
+      const timeA = new Date(`${a.fecha_salida}T${a.hora_salida || "00:00:00"}`).getTime()
+      const timeB = new Date(`${b.fecha_salida}T${b.hora_salida || "00:00:00"}`).getTime()
+      
+      // timeB - timeA = Orden descendente (más recientes primero)
+      return timeB - timeA 
+    })
+  }, [viajes])
+
+  // 2. Manejador para copiar el link público
   const handleCopyLink = (viajeId: number, viajeNombre: string) => {
     const nombreLimpio = viajeNombre
       .toLowerCase()
@@ -75,7 +88,7 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
     })
   }
 
-  // 2. Manejador para generar token de compra manual
+  // 3. Manejador para generar token de compra manual
   const handleGeneratePurchaseToken = (viajeId: number) => {
     console.log("Generando token para viaje:", viajeId)
     Swal.fire({
@@ -86,7 +99,7 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
     })
   }
 
-  // 3. Manejador para eliminar con barrera de seguridad
+  // 4. Manejador para eliminar con barrera de seguridad
   const handleDelete = async (viajeId: number) => {
     const result = await Swal.fire({
       title: "¿Estás seguro?",
@@ -101,7 +114,6 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
 
     if (result.isConfirmed) {
       try {
-        // Usamos access_token y API_URL tal como en tu página de creación
         const token = localStorage.getItem("access_token");
         
         const response = await fetch(`${API_URL}/api/viajes/${viajeId}`, {
@@ -111,12 +123,10 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
           }
         });
 
-        // 1. Leemos la respuesta como texto crudo primero
         const textResponse = await response.text();
         
         let data;
         try {
-          // 2. Intentamos convertirla a JSON
           data = JSON.parse(textResponse);
         } catch (parseError) {
           throw new Error(`Error de conexión (Status ${response.status}). Ruta no encontrada o error de servidor.`);
@@ -128,9 +138,9 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
             text: data.message,
             icon: "success",
             confirmButtonColor: "#171717"
+          }).then(() => {
+            onRefresh(); // Se ejecuta el refresh tras cerrar la alerta
           });
-
-          onRefresh?.();
         } else {
           throw new Error(data.detail || "Error al procesar la solicitud");
         }
@@ -161,7 +171,7 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {viajes.map((viaje) => {
+          {sortedViajes.map((viaje) => {
             const proximo = isViajeProximo(viaje.fecha_salida)
             const isCancelado = viaje.estado === "cancelado" 
 

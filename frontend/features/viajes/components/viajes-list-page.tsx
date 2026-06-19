@@ -14,7 +14,7 @@ import { ViajesTable } from "@/features/viajes/components/viajes-table"
 import { fetchViajes } from "@/features/viajes/api"
 import { computeViajeStats } from "@/features/viajes/utils"
 import { useCrudList } from "@/hooks/use-crud-list"
-import type { ViajeEstadoFiltro, ViajeListFilters } from "@/types/viaje"
+import type { ViajeEstadoFiltro, ViajeListFilters, Viaje } from "@/types/viaje"
 
 export function ViajesListPage() {
   const router = useRouter()
@@ -34,7 +34,20 @@ export function ViajesListPage() {
     filters,
   })
 
-  const stats = useMemo(() => computeViajeStats(data), [data])
+  // Excluimos los cancelados
+  const stats = useMemo(() => {
+    const viajesValidos = data.filter((viaje: Viaje) => viaje.estado !== "cancelado")
+    return computeViajeStats(viajesValidos)
+  }, [data])
+
+  // Ordenamos los viajes de más reciente a más viejo (Descendente)
+  const sortedData = useMemo(() => {
+    return [...data].sort((a: Viaje, b: Viaje) => {
+      const timestampA = new Date(`${a.fecha_salida}T${a.hora_salida || '00:00:00'}`).getTime()
+      const timestampB = new Date(`${b.fecha_salida}T${b.hora_salida || '00:00:00'}`).getTime()
+      return timestampB - timestampA
+    })
+  }, [data])
 
   useEffect(() => {
     if (status === "error" && error?.includes("Sesión expirada")) {
@@ -62,7 +75,7 @@ export function ViajesListPage() {
           {
             label: "Total viajes",
             value: stats.total,
-            hint: "Registros en esta vista",
+            hint: "Registros válidos",
             icon: <Route className="h-5 w-5" />,
             accent: "primary",
           },
@@ -109,7 +122,8 @@ export function ViajesListPage() {
           </Button>
         }
       >
-        <ViajesTable viajes={data} onRefresh={reload} />
+        {/* 3. Inyectamos la data ya ordenada */}
+        <ViajesTable viajes={sortedData} onRefresh={reload} />
       </CrudAsyncState>
     </AdminPageShell>
   )

@@ -6,6 +6,8 @@ from app.database import get_db
 from app.schemas.usuario import UsuarioCreate, UsuarioUpdate, UsuarioOut
 from app.services import usuario as svc
 
+from app.models.usuarios import Usuario
+
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
 
@@ -40,7 +42,13 @@ def actualizar_usuario(usuario_id: int, data: UsuarioUpdate, db: Session = Depen
 
 @router.delete("/{usuario_id}", response_model=UsuarioOut)
 def eliminar_usuario(usuario_id: int, db: Session = Depends(get_db)):
-    db_user = svc.delete_usuario(db, usuario_id)
-    if not db_user:
+    usuario_a_borrar = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    
+    if not usuario_a_borrar:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    return db_user
+
+    usuario_data = UsuarioOut.from_orm(usuario_a_borrar)
+    
+    db_user = svc.delete_usuario(db, usuario_id)
+    
+    return usuario_data
