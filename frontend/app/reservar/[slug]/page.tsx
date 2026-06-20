@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams } from "next/navigation"
 import Swal from "sweetalert2"
-import { AlertCircle, Clock, Loader2, MapPin, Ticket, ArrowLeft } from "lucide-react"
+import { AlertCircle, Loader2, MapPin, Bus, CalendarDays, Clock, Timer } from "lucide-react"
 
 import { SeatSelector } from "./seat-selector"
 import { PassengerForm } from "./passenger-form"
 import { ConfirmationScreen } from "./confirmation-screen"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001"
+const TIMER_MINUTES = 20
 
 // ─── Types ─────────────────────────────────────────────────
 type ViajePublicoInfo = {
@@ -28,31 +29,35 @@ export type PasajeroForm = {
   numero_asiento: string
   nombre_pasajero: string
   email_pasajero: string
+  punto_abordaje_pasajero: string
+  telefono_pasajero?: string
 }
 
 // ─── Helpers ───────────────────────────────────────────────
 function formatFechaBonita(fecha?: string | null) {
   if (!fecha) return ""
-  
-  // Si la fecha ya trae la hora desde la BD (tiene una 'T'), la usamos tal cual.
-  // Si solo viene "YYYY-MM-DD", le agregamos el tiempo neutral para evitar desfases de zona horaria.
   const dateString = fecha.includes('T') ? fecha : `${fecha}T00:00:00`
   const d = new Date(dateString)
-
-  return d.toLocaleDateString("es-CR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
+  return d.toLocaleDateString("es-CR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 }
 
 function formatPrecio(precio: number) {
-  return new Intl.NumberFormat("es-CR", {
-    style: "currency",
-    currency: "CRC",
-    minimumFractionDigits: 0,
-  }).format(precio)
+  return new Intl.NumberFormat("es-CR", { style: "currency", currency: "CRC", minimumFractionDigits: 0 }).format(precio)
+}
+
+function formatTimer(seconds: number) {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+}
+
+function DetailPill({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-600 text-slate-600">
+      <span className="text-orange-500">{icon}</span>
+      {label}
+    </div>
+  )
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -61,8 +66,6 @@ function formatPrecio(precio: number) {
 export default function ReservarPage() {
   const params = useParams()
   const slug = params.slug as string
-  
-  // Extrae solo el ID numérico del slug (ej: "15-ruta" -> "15")
   const viajeId = slug ? slug.split('-')[0] : ""
 
   const [viaje, setViaje] = useState<ViajePublicoInfo | null>(null)
@@ -74,15 +77,40 @@ export default function ReservarPage() {
   const [step, setStep] = useState<"seats" | "form" | "done">("seats")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // ── Estado Global del Temporizador ───────────────────────
+  const [timerActive, setTimerActive] = useState(false)
+  const [timerSeconds, setTimerSeconds] = useState(TIMER_MINUTES * 60)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (!timerActive) return
+    intervalRef.current = setInterval(() => {
+      setTimerSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(intervalRef.current!)
+          setTimerActive(false)
+          setStep("seats")
+          setSelectedSeats([])
+          Swal.fire({
+            title: "Tiempo agotado",
+            text: "El tiempo de reserva ha expirado. Tus asientos han sido liberados.",
+            icon: "warning",
+            confirmButtonColor: "#ea580c",
+          })
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [timerActive])
+
   // ── Fetch Viaje info ──────────────────────────────────────
   const fetchViaje = useCallback(async () => {
     setStatus("loading")
     try {
-      // Este endpoint debe devolver la info del viaje y qué asientos están ya comprados
       const res = await fetch(`${API_URL}/api/viajes/publico/${viajeId}`)
-      if (!res.ok) {
-        throw new Error("El enlace del viaje no es válido o ha expirado.")
-      }
+      if (!res.ok) throw new Error("El enlace del viaje no es válido o ha expirado.")
       const data: ViajePublicoInfo = await res.json()
       setViaje(data)
       setStatus("ready")
@@ -102,30 +130,27 @@ export default function ReservarPage() {
     if (viaje.asientos_ocupados.includes(numero)) return
 
     setSelectedSeats((prev) => {
-      if (prev.includes(numero)) return prev.filter((s) => s !== numero)
-      // Límite de seguridad genérico para evitar acaparamiento visual
-      if (prev.length >= 10) {
+      const isRemoving = prev.includes(numero)
+      const newSeats = isRemoving ? prev.filter((s) => s !== numero) : [...prev, numero]
+      
+      // Lógica de seguridad del límite
+      if (!isRemoving && prev.length >= 10) {
         Swal.fire({
           title: "Límite alcanzado",
-          text: `Por seguridad, solo puede seleccionar un máximo de 10 asientos a la vez.`,
+          text: `Solo puede seleccionar un máximo de 10 asientos.`,
           icon: "warning",
-          confirmButtonColor: "#4f46e5",
+          confirmButtonColor: "#ea580c",
         })
         return prev
       }
-      return [...prev, numero]
+      return newSeats
     })
   }
 
   // ── Step transitions ─────────────────────────────────────
   function goToForm() {
     if (selectedSeats.length === 0) {
-      Swal.fire({
-        title: "Seleccione asientos",
-        text: "Debe seleccionar al menos un asiento para continuar.",
-        icon: "info",
-        confirmButtonColor: "#4f46e5",
-      })
+      Swal.fire({ title: "Seleccione asientos", text: "Debe seleccionar al menos un asiento.", icon: "info", confirmButtonColor: "#ea580c" })
       return
     }
     setPasajeros(
@@ -133,6 +158,7 @@ export default function ReservarPage() {
         numero_asiento: s,
         nombre_pasajero: "",
         email_pasajero: "",
+        punto_abordaje_pasajero: "", // INICIALIZADO AQUÍ
       }))
     )
     setStep("form")
@@ -145,110 +171,98 @@ export default function ReservarPage() {
   }
 
   function updatePasajero(index: number, field: keyof PasajeroForm, value: string) {
-    setPasajeros((prev) =>
-      prev.map((p, i) => (i === index ? { ...p, [field]: value } : p))
-    )
+    setPasajeros((prev) => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)))
   }
 
   // ── Submit ───────────────────────────────────────────────
   async function handleSubmit() {
     if (!tokenReserva.trim()) {
-        Swal.fire({
-            title: "Token Requerido",
-            text: "Ingrese el Token de Autorización proporcionado por el administrador.",
-            icon: "warning",
-            confirmButtonColor: "#4f46e5",
-        })
+        Swal.fire({ title: "Token Requerido", text: "Ingrese el Token de Autorización.", icon: "warning", confirmButtonColor: "#ea580c" })
         return
     }
-
+    
+    // Validación genérica (el textbox de abordaje lo validaremos dentro del form)
     for (const p of pasajeros) {
       if (p.nombre_pasajero.trim().length < 2) {
-        Swal.fire({
-          title: "Datos incompletos",
-          text: `Ingrese el nombre del pasajero para el asiento #${p.numero_asiento}.`,
-          icon: "warning",
-          confirmButtonColor: "#4f46e5",
-        })
+        Swal.fire({ title: "Datos incompletos", text: `Ingrese el nombre para el asiento #${p.numero_asiento}.`, icon: "warning", confirmButtonColor: "#ea580c" })
         return
       }
     }
 
     setIsSubmitting(true)
     try {
-      // El backend ahora valida que el Token exista, que tenga capacidad para la cantidad
-      // de asientos seleccionados y que corresponda a este viaje.
       const res = await fetch(`${API_URL}/api/viajes/${viajeId}/reservar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            token: tokenReserva,
-            asientos: pasajeros 
-        }),
+        body: JSON.stringify({ token: tokenReserva, asientos: pasajeros }),
       })
 
       if (!res.ok) {
         const body = await res.json().catch(() => null)
-        throw new Error(body?.detail ?? "Error al validar el token o reservar los asientos.")
+        throw new Error(body?.detail ?? "Error al validar el token o reservar.")
       }
 
+      setTimerActive(false) // Detenemos el reloj al ser exitoso
       setStep("done")
       window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (err: any) {
-      Swal.fire({
-        title: "Error de Validación",
-        text: err?.message ?? "No se pudo procesar la reserva. Verifique su Token.",
-        icon: "error",
-        confirmButtonColor: "#4f46e5",
-      })
+      Swal.fire({ title: "Error de Validación", text: err?.message, icon: "error", confirmButtonColor: "#ea580c" })
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // ── Loading & Error states se mantienen igual visualmente ──
-  if (status === "loading") {
-    // ... (Mantén el diseño de carga de tu colega aquí)
-    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><Loader2 className="animate-spin" size={32} /></div>
-  }
-
-  if (status === "error") {
-    // ... (Mantén el diseño de error de tu colega aquí)
-    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><AlertCircle size={32} color="red" /> {errorMsg}</div>
-  }
-
+  if (status === "loading") return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><Loader2 className="animate-spin text-orange-500" size={32} /></div>
+  if (status === "error") return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><AlertCircle size={32} color="red" /> {errorMsg}</div>
   if (!viaje) return null
 
-  // ── Confirmation screen ──────────────────────────────────
   if (step === "done") {
-    return (
-      <ConfirmationScreen
-        viajeName={viaje.nombre}
-        fecha={viaje.fecha_salida}
-        hora={viaje.hora_salida}
-        lugar={viaje.lugar_abordaje}
-        asientos={selectedSeats}
-      />
-    )
+    return <ConfirmationScreen viajeName={viaje.nombre} fecha={viaje.fecha_salida} hora={viaje.hora_salida} lugar={viaje.lugar_abordaje} asientos={selectedSeats} />
   }
 
-  // ── Main layout ──────────────────────────────────────────
+  const timerUrgent = timerSeconds < 120
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(168deg, #f0f4ff 0%, #fafbff 40%, #f5f3ff 100%)",
-        fontFamily: "'DM Sans', 'SF Pro Display', -apple-system, sans-serif",
-        paddingBottom: 20,
-      }}
-    >
-        {/* ... (Header Visual de tu colega se mantiene exacto) ... */}
+    <div style={{ minHeight: "100vh", background: "linear-gradient(168deg, #f0f4ff 0%, #fafbff 40%, #f5f3ff 100%)", fontFamily: "'Syne', -apple-system, sans-serif", paddingBottom: 20 }}>
       
-      <main style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px", marginTop: 80 }}>
+      {/* ── HEADER GLOBAL ──────────────────────────────────────── */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.10)]">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100/80">
+            <div className="h-8 w-8 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-gradient-to-br from-orange-500 to-orange-700 shadow-sm">
+              <img src="/images/logo.jpeg" alt="Logo" className="h-8 w-auto object-cover bg-white" onError={(e) => { e.currentTarget.style.display = "none" }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-bold text-slate-800 truncate leading-tight">{viaje.nombre}</p>
+              {viaje.lugar_abordaje && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <MapPin size={10} className="text-orange-500 shrink-0" strokeWidth={2.5} />
+                  <span className="text-[11px] font-medium text-slate-500 truncate">Salida principal: {viaje.lugar_abordaje}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            <DetailPill icon={<CalendarDays size={11} strokeWidth={2.5} />} label={formatFechaBonita(viaje.fecha_salida)} />
+            <DetailPill icon={<Clock size={11} strokeWidth={2.5} />} label={viaje.hora_salida || ""} />
+            
+            {/* TIMER GLOBAL SI ESTÁ ACTIVO */}
+            {timerActive && (
+              <div className={`ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-xl border ${timerUrgent ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}>
+                <Timer size={11} className={timerUrgent ? "text-red-500" : "text-amber-600"} strokeWidth={2.5} />
+                <span className={`text-[12px] font-bold tabular-nums ${timerUrgent ? "text-red-600" : "text-amber-700"}`}>
+                  {formatTimer(timerSeconds)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+      
+      <main style={{ maxWidth: 480, margin: "0 auto", padding: "0 20px", marginTop: 100 }}>
         {step === "seats" && (
           <SeatSelector
             totalAsientos={viaje.total_asientos}
-            disponibles={[]} // Ya no es necesario pasar disponibles, la lógica usa ocupados
             ocupados={viaje.asientos_ocupados}
             selected={selectedSeats}
             maxSelectable={10} 
@@ -256,11 +270,9 @@ export default function ReservarPage() {
             tipoPlantilla={viaje.tipo_plantilla}
             onToggle={toggleSeat}
             onContinue={goToForm}
-
-            nombreViaje={viaje.nombre}
-            ruta={viaje.lugar_abordaje || ""}
-            fecha={formatFechaBonita(viaje.fecha_salida)} // Asumiendo que usas tu función nativa
-            horaSalida={viaje.hora_salida || ""}
+            // Controladores del Timer para SeatSelector
+            onStartTimer={() => { setTimerSeconds(TIMER_MINUTES * 60); setTimerActive(true); }}
+            onResetTimer={() => { setTimerActive(false); setTimerSeconds(TIMER_MINUTES * 60); if (intervalRef.current) clearInterval(intervalRef.current); }}
           />
         )}
 
