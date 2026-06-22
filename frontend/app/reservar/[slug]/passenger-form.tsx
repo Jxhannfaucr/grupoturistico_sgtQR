@@ -1,7 +1,7 @@
 "use client"
 
 import { PasajeroForm } from "./page"
-import { ArrowLeft, ArrowRight, KeyRound, MapPin, Mail, User, Phone, Receipt, Ticket, ShieldCheck, Info } from "lucide-react"
+import { ArrowLeft, ArrowRight, KeyRound, MapPin, Mail, User, Phone, Receipt, ShieldCheck, Info } from "lucide-react"
 import { clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -43,11 +43,11 @@ export function PassengerForm({
   const totalPagar = precio * pasajeros.length
 
   return (
-    <div className="pb-32 font-['Syne',sans-serif] animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="pb-30 font-['Syne',sans-serif] animate-in fade-in slide-in-from-bottom-3 duration-500">
       <div className="space-y-5">
         
         {/* ── 1. TARJETA DE AUTORIZACIÓN (TOKEN) ── */}
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] relative overflow-hidden">
+        <div className="mt-[120px] bg-white rounded-3xl p-6 border border-slate-200 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.06)] relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-orange-400 to-orange-600" />
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center border border-orange-100">
@@ -92,7 +92,7 @@ export function PassengerForm({
                 </div>
 
                 <div className="space-y-4">
-                  {/* Nombre Completo */}
+                  {/* Nombre Completo (Para todos) */}
                   <div>
                     <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Nombre y Apellidos</label>
                     <div className="relative">
@@ -107,56 +107,59 @@ export function PassengerForm({
                     </div>
                   </div>
 
-                  {/* Punto de Abordaje (Texto libre con UX Defensiva) */}
-                  <div>
-                    <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Lugar de Abordaje</label>
-                    <div className="relative">
-                      <MapPin size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        value={p.punto_abordaje_pasajero}
-                        onChange={(e) => onUpdate(index, "punto_abordaje_pasajero", e.target.value)}
-                        placeholder="Ej: Frente a la gasolinera JSM, Upala"
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
-                      />
-                    </div>
-                    <p className="flex items-center gap-1 mt-1.5 ml-1 text-[11px] font-medium text-slate-500">
-                      <Info size={12} className="text-orange-500" />
-                      Sé específico para que el conductor pueda ubicarte.
-                    </p>
-                  </div>
-
-                  {/* Campos adicionales solo para el Titular (Email y Teléfono) */}
+                  {/* Bloque Exclusivo del Titular (Abordaje, Email, Teléfono) */}
                   {isTitular && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <>
+                      {/* Punto de Abordaje */}
                       <div>
-                        <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Correo (Opcional)</label>
+                        <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Lugar de Abordaje</label>
                         <div className="relative">
-                          <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <MapPin size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                           <input
-                            type="email"
-                            value={p.email_pasajero}
-                            onChange={(e) => onUpdate(index, "email_pasajero", e.target.value)}
-                            placeholder="correo@ejemplo.com"
+                            type="text"
+                            value={p.punto_abordaje_pasajero}
+                            onChange={(e) => onUpdate(index, "punto_abordaje_pasajero", e.target.value)}
+                            placeholder="Ej: Parada del puente de San José de Upala"
                             className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
                           />
                         </div>
+                        <p className="flex items-center gap-1 mt-1.5 ml-1 text-[11px] font-medium text-slate-500">
+                          <Info size={12} className="text-orange-500" />
+                          Sé específico para que el conductor pueda ubicarte.
+                        </p>
                       </div>
-                      <div>
-                        <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Teléfono</label>
-                        <div className="relative">
-                          <Phone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input
-                            type="tel"
-                            // Usamos as any temporalmente si no has agregado el campo al type en page.tsx
-                            value={(p as any).telefono_pasajero || ""}
-                            onChange={(e) => onUpdate(index, "telefono_pasajero" as any, e.target.value)}
-                            placeholder="8888-8888"
-                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
-                          />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        {/* Correo */}
+                        <div>
+                          <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Correo (Opcional)</label>
+                          <div className="relative">
+                            <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="email"
+                              value={p.email_pasajero}
+                              onChange={(e) => onUpdate(index, "email_pasajero", e.target.value)}
+                              placeholder="correo@ejemplo.com"
+                              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                            />
+                          </div>
+                        </div>
+                        {/* Teléfono */}
+                        <div>
+                          <label className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Teléfono</label>
+                          <div className="relative">
+                            <Phone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="tel"
+                              value={(p as any).telefono_pasajero || ""}
+                              onChange={(e) => onUpdate(index, "telefono_pasajero" as any, e.target.value)}
+                              placeholder="8888-8888"
+                              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -173,7 +176,7 @@ export function PassengerForm({
 
           <div className="space-y-3 mb-6">
             <div className="flex justify-between items-start text-[14px]">
-              <span className="font-medium text-slate-500">Ruta:</span>
+              <span className="font-medium text-slate-500">Viaje:</span>
               <span className="font-bold text-slate-800 text-right max-w-[200px]">{viajeName}</span>
             </div>
             <div className="flex justify-between items-center text-[14px]">

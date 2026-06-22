@@ -174,7 +174,7 @@ export function SeatSelector({
       `}</style>
 
       {/* ── Cuerpo principal ─────────────────────────────────── */}
-      <div className="ss-root pb-44" style={{ paddingTop: "20px" }}>
+      <div className="ss-root pb-22" style={{ paddingTop: "20px" }}>
 
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mb-5 px-4">
           <div className="flex items-center gap-2">
