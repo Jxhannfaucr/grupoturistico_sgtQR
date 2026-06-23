@@ -1,9 +1,10 @@
+# app/routes/token.py
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.database import get_db
-from app.schemas.token import TokenCreate, TokenUpdate
+from app.schemas.token import TokenCreate, TokenUpdate, TokenCompraCreate
 from app.services.token_service import (
     listar_tokens,
     obtener_token,
@@ -40,6 +41,29 @@ def post_token(
     token = crear_token(db, data, user_id=user_id)
     return {
         "message": "Lote creado exitosamente",
+        "token": formatear_token(token),
+    }
+
+
+@router.post("/viaje/{viaje_id}/compra", status_code=status.HTTP_201_CREATED)
+def post_token_compra(
+    viaje_id: int,
+    data: TokenCompraCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Genera un token de compra para un cliente en un viaje específico."""
+    user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+    
+    token_data = TokenCreate(
+        viaje_id=viaje_id,
+        capacidad_total=1,
+        cliente=data.cliente
+    )
+    
+    token = crear_token(db, token_data, user_id=user_id)
+    return {
+        "message": "Token de compra creado exitosamente",
         "token": formatear_token(token),
     }
 

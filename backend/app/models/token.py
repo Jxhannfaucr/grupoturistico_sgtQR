@@ -1,3 +1,4 @@
+# app/models/token.py
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ class Token(Base):
     codigo = Column(String, unique=True, nullable=False)
     capacidad_total = Column(Integer, nullable=False)
     capacidad_usada = Column(Integer, default=0)
+    cliente = Column(String(100), nullable=True)
     creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     creado_en = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

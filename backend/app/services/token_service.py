@@ -1,3 +1,4 @@
+# app/services/token_service.py
 import uuid
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -90,6 +91,7 @@ def crear_token(db: Session, data: TokenCreate, user_id: int | None = None) -> T
         codigo=codigo,
         capacidad_total=data.capacidad_total,
         capacidad_usada=0,
+        cliente=data.cliente,
         creado_por=user_id,
     )
 
@@ -170,6 +172,7 @@ def formatear_token(token: Token) -> dict:
         "capacidad_total": token.capacidad_total,
         "capacidad_usada": token.capacidad_usada,
         "capacidad_disponible": token.capacidad_total - token.capacidad_usada,
+        "cliente": token.cliente,
         "creado_por": token.creado_por,
         "creado_en": token.creado_en.isoformat() if token.creado_en else None,
         "viaje": {
