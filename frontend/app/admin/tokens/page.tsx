@@ -2,9 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
-import { zodResolver } from "@hookform/resolvers/zod"
 import Swal from "sweetalert2"
 import {
   Calendar,
@@ -21,6 +18,7 @@ import {
   Search,
   Ticket,
   Trash2,
+  User,
   Users,
 } from "lucide-react"
 
@@ -29,29 +27,12 @@ import { AdminPageShell } from "@/components/admin/admin-page-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -76,6 +57,10 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
+import { StatCard } from "./components/stat-card"
+import { TokenCreateDialog } from "./components/token-create-dialog"
+import { TokenEditDialog } from "./components/token-edit-dialog"
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001"
 
 // ─── Types ─────────────────────────────────────────────────
@@ -91,6 +76,7 @@ type Token = {
   capacidad_total: number
   capacidad_usada: number
   capacidad_disponible: number
+  cliente?: string | null
   creado_por?: number | null
   creado_en?: string | null
   viaje?: TokenViaje | null
@@ -101,24 +87,15 @@ type Viaje = {
   nombre: string
 }
 
-// ─── Zod Schemas ───────────────────────────────────────────
-const createSchema = z.object({
-  viaje_id: z.coerce.number().positive("Seleccione un viaje"),
-  capacidad_total: z.coerce
-    .number()
-    .int("Debe ser un número entero")
-    .positive("La capacidad debe ser mayor a 0"),
-})
+export type CreateFormValues = {
+  viaje_id: number
+  capacidad_total: number
+  cliente?: string
+}
 
-const editSchema = z.object({
-  capacidad_total: z.coerce
-    .number()
-    .int("Debe ser un número entero")
-    .positive("La capacidad debe ser mayor a 0"),
-})
-
-type CreateFormValues = z.infer<typeof createSchema>
-type EditFormValues = z.infer<typeof editSchema>
+export type EditFormValues = {
+  capacidad_total: number
+}
 
 // ─── Helpers ───────────────────────────────────────────────
 function getAuthHeaders(): HeadersInit {
@@ -185,7 +162,7 @@ export default function TokensPage() {
         setStatus("error")
         return
       }
-      if (!res.ok) throw new Error("Error al cargar lotes")
+      if (!res.ok) throw new Error("Error al cargar tokens")
       const data: Token[] = await res.json()
       setTokens(data)
       setStatus("success")
@@ -195,7 +172,7 @@ export default function TokensPage() {
     }
   }, [])
 
-  // ── Fetch viajes (para el select del form) ───────────────
+  // ── Fetch viajes (solo activos para el select del form) ──
   const fetchViajes = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/api/viajes`, {
@@ -203,7 +180,10 @@ export default function TokensPage() {
       })
       if (res.ok) {
         const data = await res.json()
-        setViajes(data.map((v: any) => ({ id: v.id, nombre: v.nombre })))
+        const viajesActivos = data
+          .filter((v: any) => v.estado !== "cancelado")
+          .map((v: any) => ({ id: v.id, nombre: v.nombre }))
+        setViajes(viajesActivos)
       }
     } catch {
       // silenciar — no es crítico
@@ -255,21 +235,30 @@ export default function TokensPage() {
   async function handleCreate(values: CreateFormValues) {
     setIsSubmitting(true)
     try {
+      const body: any = {
+        viaje_id: values.viaje_id,
+        capacidad_total: values.capacidad_total,
+      }
+
+      if (values.cliente?.trim()) {
+        body.cliente = values.cliente.trim()
+      }
+
       const res = await fetch(`${API_URL}/api/tokens`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify(values),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
         const body = await res.json().catch(() => null)
-        throw new Error(body?.detail ?? "Error al crear el lote")
+        throw new Error(body?.detail ?? "Error al crear el token")
       }
 
       const data = await res.json()
 
       Swal.fire({
-        title: "Lote creado",
+        title: "Token creado",
         html: `Código generado: <strong class="font-mono text-lg">${data.token.codigo}</strong>`,
         icon: "success",
         confirmButtonColor: "#171717",
@@ -280,7 +269,7 @@ export default function TokensPage() {
     } catch (err: any) {
       Swal.fire({
         title: "Error",
-        text: err?.message ?? "No se pudo crear el lote.",
+        text: err?.message ?? "No se pudo crear el token.",
         icon: "error",
         confirmButtonColor: "#171717",
       })
@@ -306,7 +295,7 @@ export default function TokensPage() {
 
       Swal.fire({
         title: "Éxito",
-        text: "Lote actualizado correctamente.",
+        text: "Token actualizado correctamente.",
         icon: "success",
         confirmButtonColor: "#171717",
       })
@@ -327,10 +316,10 @@ export default function TokensPage() {
 
   async function handleDelete(token: Token) {
     const result = await Swal.fire({
-      title: `¿Eliminar lote "${token.codigo}"?`,
+      title: `¿Eliminar token "${token.codigo}"?`,
       text:
         token.capacidad_usada > 0
-          ? `Este lote tiene ${token.capacidad_usada} ticket(s) emitido(s) y no se puede eliminar.`
+          ? `Este token tiene ${token.capacidad_usada} ticket(s) emitido(s) y no se puede eliminar.`
           : "Esta acción no se puede deshacer.",
       icon: token.capacidad_usada > 0 ? "error" : "warning",
       showCancelButton: true,
@@ -356,7 +345,7 @@ export default function TokensPage() {
 
       Swal.fire({
         title: "Eliminado",
-        text: `Lote "${token.codigo}" eliminado del sistema.`,
+        text: `Token "${token.codigo}" eliminado del sistema.`,
         icon: "success",
         confirmButtonColor: "#171717",
       })
@@ -385,15 +374,15 @@ export default function TokensPage() {
   return (
     <AdminPageShell>
       <AdminPageHeader
-        title="Lotes (Tokens)"
-        description="Administra los lotes de QR asignados a cada viaje. Cada lote tiene un código único para generar tickets."
+        title="Tokens"
+        description="Administra los tokens de QR asignados a cada viaje. Cada token tiene un código único para generar tickets."
         actions={
           <Button
             className="rounded-full shadow-md shadow-primary/25"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="mr-2 h-4 w-4" />
-            Crear lote
+            Crear token
           </Button>
         }
       />
@@ -402,16 +391,16 @@ export default function TokensPage() {
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={<Package className="h-5 w-5" />}
-          label="Total lotes"
+          label="Total tokens"
           value={stats.total}
-          hint="Lotes creados"
+          hint="Tokens creados"
           accent="primary"
         />
         <StatCard
           icon={<Users className="h-5 w-5" />}
           label="Asientos asignados"
           value={stats.asignadosTotal}
-          hint="En todos los lotes"
+          hint="En todos los tokens"
           accent="secondary"
         />
         <StatCard
@@ -425,7 +414,7 @@ export default function TokensPage() {
           icon={<Users className="h-5 w-5" />}
           label="Disponibles"
           value={stats.disponibles}
-          hint="Sin usar en lotes"
+          hint="Sin usar en tokens"
           accent="success"
         />
       </div>
@@ -458,7 +447,7 @@ export default function TokensPage() {
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por código o viaje…"
               className="h-9 rounded-full pl-9"
-              aria-label="Buscar lote"
+              aria-label="Buscar token"
             />
           </div>
           <Button
@@ -482,7 +471,7 @@ export default function TokensPage() {
         {status === "loading" && tokens.length === 0 && (
           <div className="flex items-center justify-center rounded-2xl border border-border/70 bg-card p-16 shadow-sm">
             <Loader2 className="mr-3 h-5 w-5 animate-spin text-primary" />
-            <span className="text-muted-foreground">Cargando lotes…</span>
+            <span className="text-muted-foreground">Cargando tokens…</span>
           </div>
         )}
 
@@ -501,14 +490,14 @@ export default function TokensPage() {
               <Package className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="text-center">
-              <p className="font-medium text-foreground">No hay lotes registrados</p>
+              <p className="font-medium text-foreground">No hay tokens registrados</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Crea el primer lote para comenzar a generar tickets QR.
+                Crea el primer token para comenzar a generar tickets QR.
               </p>
             </div>
             <Button onClick={() => setCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Crear primer lote
+              Crear primer token
             </Button>
           </div>
         )}
@@ -520,6 +509,7 @@ export default function TokensPage() {
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="pl-5">Código</TableHead>
                   <TableHead>Viaje</TableHead>
+                  <TableHead>Cliente</TableHead>
                   <TableHead>Capacidad</TableHead>
                   <TableHead>Uso</TableHead>
                   <TableHead>Creado</TableHead>
@@ -574,6 +564,16 @@ export default function TokensPage() {
                           <Route className="h-4 w-4 text-muted-foreground" />
                           <span className="text-sm">
                             {token.viaje?.nombre ?? "Sin viaje"}
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      {/* Cliente */}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            {token.cliente || "—"}
                           </span>
                         </div>
                       </TableCell>
@@ -695,264 +695,5 @@ export default function TokensPage() {
         isSubmitting={isSubmitting}
       />
     </AdminPageShell>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════
-// STAT CARD
-// ═══════════════════════════════════════════════════════════
-function StatCard({
-  icon,
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  hint: string
-  accent: "primary" | "secondary" | "accent" | "success"
-}) {
-  const colors: Record<string, string> = {
-    primary: "bg-primary/10 text-primary",
-    secondary: "bg-secondary/10 text-secondary",
-    accent: "bg-amber-500/10 text-amber-600",
-    success: "bg-emerald-500/10 text-emerald-600",
-  }
-
-  return (
-    <div className="flex items-center gap-4 rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
-      <div
-        className={cn(
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-          colors[accent]
-        )}
-      >
-        {icon}
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-foreground">{value}</p>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════
-// CREATE DIALOG (viaje_id + capacidad_total)
-// ═══════════════════════════════════════════════════════════
-function TokenCreateDialog({
-  open,
-  onOpenChange,
-  viajes,
-  onSubmit,
-  isSubmitting,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  viajes: Viaje[]
-  onSubmit: (values: CreateFormValues) => Promise<void>
-  isSubmitting: boolean
-}) {
-  const form = useForm<CreateFormValues>({
-    resolver: zodResolver(createSchema),
-    defaultValues: {
-      viaje_id: 0,
-      capacidad_total: 0,
-    },
-  })
-
-  useEffect(() => {
-    if (open) {
-      form.reset({ viaje_id: 0, capacidad_total: 0 })
-    }
-  }, [open, form])
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Crear lote</DialogTitle>
-          <DialogDescription>
-            Selecciona un viaje y define cuántos asientos asignar a este lote.
-            El código se genera automáticamente.
-          </DialogDescription>
-        </DialogHeader>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="viaje_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Viaje</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value ? String(field.value) : undefined}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder="Seleccione un viaje" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {viajes.map((v) => (
-                        <SelectItem key={v.id} value={String(v.id)}>
-                          {v.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="capacidad_total"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cantidad de asientos</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Ej. 15"
-                      className="rounded-xl"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Asientos que podrá generar este lote como tickets.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-full"
-                onClick={() => onOpenChange(false)}
-                disabled={isSubmitting}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="rounded-full shadow-md shadow-primary/25"
-                disabled={isSubmitting}
-              >
-                {isSubmitting && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Crear lote
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════
-// EDIT DIALOG (solo capacidad_total)
-// ═══════════════════════════════════════════════════════════
-function TokenEditDialog({
-  open,
-  onOpenChange,
-  token,
-  onSubmit,
-  isSubmitting,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  token: Token | null
-  onSubmit: (values: EditFormValues) => Promise<void>
-  isSubmitting: boolean
-}) {
-  const form = useForm<EditFormValues>({
-    resolver: zodResolver(editSchema),
-    defaultValues: {
-      capacidad_total: 0,
-    },
-  })
-
-  useEffect(() => {
-    if (open && token) {
-      form.reset({ capacidad_total: token.capacidad_total })
-    }
-  }, [open, token, form])
-
-  if (!token) return null
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Editar lote</DialogTitle>
-          <DialogDescription>
-            Código: <span className="font-mono font-semibold">{token.codigo}</span>
-            {" · "}Uso actual: {token.capacidad_usada} de {token.capacidad_total}
-          </DialogDescription>
-        </DialogHeader>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="capacidad_total"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nueva capacidad total</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={token.capacidad_usada || 1}
-                      placeholder="Ej. 20"
-                      className="rounded-xl"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Mínimo: {token.capacidad_usada || 1} (tickets ya emitidos).
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-full"
-                onClick={() => onOpenChange(false)}
-                disabled={isSubmitting}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="rounded-full shadow-md shadow-primary/25"
-                disabled={isSubmitting}
-              >
-                {isSubmitting && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Guardar cambios
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
   )
 }

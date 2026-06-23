@@ -52,7 +52,7 @@ const navigation = [
     icon: Bus,
   },
   {
-    label: "Lotes",
+    label: "Tokens",
     href: "/admin/tokens",
     icon: Package,
   },
