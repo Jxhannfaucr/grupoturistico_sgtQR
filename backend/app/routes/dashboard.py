@@ -17,7 +17,7 @@ type DashboardStats = {
   viajes_realizados: number
   total_buses: number
   total_tickets: number
-  vendidos_hoy: number
+  vendidos: number
   proximo_viaje: {
     id: number
     nombre: string
@@ -118,7 +118,7 @@ export default function DashboardPage() {
         <StatCard
           icon={<TrendingUp className="h-5 w-5" />}
           label="Vendidos"
-          value={stats?.vendidos_hoy ?? 0}
+          value={stats?.vendidos ?? 0}
           color="rose"
         />
         <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
