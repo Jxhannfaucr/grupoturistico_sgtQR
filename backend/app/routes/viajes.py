@@ -180,27 +180,41 @@ def eliminar_viaje(
     return {"message": "Viaje eliminado físicamente exitosamente.", "accion": "hard_delete"}
 
 # ─── ENDPOINTS PÚBLICOS (SISTEMA DE ASIENTOS) ────────────────
+from fastapi import Query
+
 @router.get("/publico/{viaje_id}")
-def obtener_viaje_publico(viaje_id: int, db: Session = Depends(get_db)):
+def obtener_viaje_publico(
+    viaje_id: int, 
+    session_id: Optional[str] = Query(None), # <-- Recibimos la identidad del cliente
+    db: Session = Depends(get_db)
+):
     viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
     if not viaje:
-        raise HTTPException(status_code=404, detail="El enlace del viaje no es válido o ha expirado.")
+        raise HTTPException(status_code=404, detail="El enlace no es válido.")
     
-    # Limpieza pasiva utilizando UTC para concordar con Supabase
+    # 1. Limpieza Pasiva
     db.query(AsientoBloqueado).filter(AsientoBloqueado.expira_en < datetime.now(timezone.utc)).delete()
     db.commit()
 
-    asientos_reservados_query = db.query(Asiento.numero).filter(
+    # 2. Vendidos definitivos
+    vendidos_query = db.query(Asiento.numero).filter(
         Asiento.viaje_id == viaje_id,
         Asiento.estado == "reservado"
     ).all()
     
-    bloqueos_query = db.query(AsientoBloqueado.numero_asiento).filter(AsientoBloqueado.viaje_id == viaje_id).all()
+    # 3. Bloqueos temporales totales
+    bloqueos_query = db.query(AsientoBloqueado).filter(AsientoBloqueado.viaje_id == viaje_id).all()
 
-    ocupados_bd = [str(a[0]) for a in asientos_reservados_query]
-    bloqueados_temp = [str(a[0]) for a in bloqueos_query]
-    asientos_ocupados = list(set(ocupados_bd + bloqueados_temp))
-    
+    ocupados_por_otros = [str(a[0]) for a in vendidos_query]
+    mis_asientos = []
+
+    # 4. Segregación de estado
+    for bloqueo in bloqueos_query:
+        if session_id and bloqueo.session_id == session_id:
+            mis_asientos.append(bloqueo.numero_asiento)
+        else:
+            ocupados_por_otros.append(bloqueo.numero_asiento)
+            
     total_asientos = viaje.bus.capacidad_total if viaje.bus else 0
     tipo_plantilla = viaje.bus.tipo_plantilla if viaje.bus and hasattr(viaje.bus, 'tipo_plantilla') else "2x2_estandar"
     
@@ -212,7 +226,8 @@ def obtener_viaje_publico(viaje_id: int, db: Session = Depends(get_db)):
         "lugar_abordaje": viaje.lugar_abordaje,
         "precio": float(viaje.precio) if viaje.precio else 0.0,
         "total_asientos": total_asientos,
-        "asientos_ocupados": asientos_ocupados,
+        "asientos_ocupados": list(set(ocupados_por_otros)), # Solo los de otros + vendidos
+        "mis_asientos": mis_asientos, # Los que el cliente actual tiene bloqueados a su favor
         "tipo_plantilla": tipo_plantilla
     }
 

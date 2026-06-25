@@ -81,13 +81,13 @@ export default function ReservarPage() {
   const [sessionId, setSessionId] = useState<string>("")
 
   useEffect(() => {
-    let sid = localStorage.getItem("session_id")
-    if (!sid) {
-      sid = Math.random().toString(36).substring(2) + Date.now().toString(36)
-      localStorage.setItem("session_id", sid)
-    }
-    setSessionId(sid)
-  }, [])
+      let sid = localStorage.getItem("session_id")
+      if (!sid) {
+        sid = Math.random().toString(36).substring(2) + Date.now().toString(36)
+        localStorage.setItem("session_id", sid)
+      }
+      setSessionId(sid)
+    }, [])
 
   // ── Estado Global del Temporizador ───────────────────────
   const [timerActive, setTimerActive] = useState(false)
@@ -118,21 +118,37 @@ export default function ReservarPage() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [timerActive])
 
-  // ── Fetch Viaje info (Con Polling) ────────────────────────
+  // ── Fetch Viaje info (Con Polling e Identidad) ────────────────────────
   const fetchViaje = useCallback(async (isPolling = false) => {
+    // Si no tenemos session_id todavía, no disparamos para evitar desincronización
+    if (!sessionId && isPolling) return; 
+    
     if (!isPolling) setStatus("loading")
     try {
-      const res = await fetch(`${API_URL}/api/viajes/publico/${viajeId}`)
+      // Inyectamos el session_id en la URL
+      const url = new URL(`${API_URL}/api/viajes/publico/${viajeId}`)
+      if (sessionId) url.searchParams.append("session_id", sessionId)
+
+      const res = await fetch(url.toString())
       if (!res.ok) throw new Error("El enlace del viaje no es válido o ha expirado.")
-      const data: ViajePublicoInfo = await res.json()
+      const data = await res.json()
       
       setViaje((prev) => {
-        // Si es polling, solo actualizamos los asientos para no re-renderizar todo bruscamente
         if (prev && isPolling) {
           return { ...prev, asientos_ocupados: data.asientos_ocupados }
         }
         return data
       })
+
+      // [CORE FIX]: El backend es la fuente de verdad. Rehidratamos nuestra selección local.
+      setSelectedSeats(data.mis_asientos || [])
+      
+      // Si el backend dice que tenemos asientos y el timer no está activo (ej. recarga de F5)
+      if (data.mis_asientos?.length > 0 && !timerActive && !isPolling) {
+        setTimerSeconds(TIMER_MINUTES * 60)
+        setTimerActive(true)
+      }
+
       if (!isPolling) setStatus("ready")
     } catch (err: any) {
       if (!isPolling) {
@@ -140,7 +156,7 @@ export default function ReservarPage() {
         setStatus("error")
       }
     }
-  }, [viajeId])
+  }, [viajeId, sessionId, timerActive])
 
   // ── Inicialización y Short Polling (Tiempo Real) ────────
   useEffect(() => {
