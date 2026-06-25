@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams } from "next/navigation"
 import Swal from "sweetalert2"
-import { AlertCircle, Loader2, MapPin, Bus, CalendarDays, Clock, Timer } from "lucide-react"
+import { AlertCircle, Loader2, MapPin, CalendarDays, Clock, Timer } from "lucide-react"
 
 import { SeatSelector } from "./seat-selector"
 import { PassengerForm } from "./passenger-form"
@@ -77,6 +77,18 @@ export default function ReservarPage() {
   const [step, setStep] = useState<"seats" | "form" | "done">("seats")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // ── Sesión Temporal del Usuario ──────────────────────────
+  const [sessionId, setSessionId] = useState<string>("")
+
+  useEffect(() => {
+    let sid = localStorage.getItem("session_id")
+    if (!sid) {
+      sid = Math.random().toString(36).substring(2) + Date.now().toString(36)
+      localStorage.setItem("session_id", sid)
+    }
+    setSessionId(sid)
+  }, [])
+
   // ── Estado Global del Temporizador ───────────────────────
   const [timerActive, setTimerActive] = useState(false)
   const [timerSeconds, setTimerSeconds] = useState(TIMER_MINUTES * 60)
@@ -97,6 +109,7 @@ export default function ReservarPage() {
             icon: "warning",
             confirmButtonColor: "#ea580c",
           })
+          // Nota: El backend limpiará la tabla automáticamente por expiración de tiempo.
           return 0
         }
         return prev - 1
@@ -105,46 +118,106 @@ export default function ReservarPage() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [timerActive])
 
-  // ── Fetch Viaje info ──────────────────────────────────────
-  const fetchViaje = useCallback(async () => {
-    setStatus("loading")
+  // ── Fetch Viaje info (Con Polling) ────────────────────────
+  const fetchViaje = useCallback(async (isPolling = false) => {
+    if (!isPolling) setStatus("loading")
     try {
       const res = await fetch(`${API_URL}/api/viajes/publico/${viajeId}`)
       if (!res.ok) throw new Error("El enlace del viaje no es válido o ha expirado.")
       const data: ViajePublicoInfo = await res.json()
-      setViaje(data)
-      setStatus("ready")
+      
+      setViaje((prev) => {
+        // Si es polling, solo actualizamos los asientos para no re-renderizar todo bruscamente
+        if (prev && isPolling) {
+          return { ...prev, asientos_ocupados: data.asientos_ocupados }
+        }
+        return data
+      })
+      if (!isPolling) setStatus("ready")
     } catch (err: any) {
-      setErrorMsg(err?.message ?? "Error al cargar la información.")
-      setStatus("error")
+      if (!isPolling) {
+        setErrorMsg(err?.message ?? "Error al cargar la información.")
+        setStatus("error")
+      }
     }
   }, [viajeId])
 
+  // ── Inicialización y Short Polling (Tiempo Real) ────────
   useEffect(() => {
-    if (viajeId) fetchViaje()
-  }, [fetchViaje, viajeId])
+    if (viajeId) fetchViaje() // Carga inicial
+    
+    // Polling cada 5 segundos para mantener actualizado el mapa de ocupación
+    const pollingInterval = setInterval(() => {
+      if (viajeId && step === "seats") fetchViaje(true)
+    }, 5000)
+    
+    return () => clearInterval(pollingInterval)
+  }, [fetchViaje, viajeId, step])
 
-  // ── Seat toggle ──────────────────────────────────────────
-  function toggleSeat(numero: string) {
-    if (!viaje) return
-    if (viaje.asientos_ocupados.includes(numero)) return
+  // ── Seat toggle (Conexión API) ───────────────────────────
+  async function toggleSeat(numero: string) {
+    if (!viaje || !sessionId) return
+    
+    // Si el asiento está en la lista de ocupados/bloqueados por OTRO, ignorar clic
+    if (viaje.asientos_ocupados.includes(numero) && !selectedSeats.includes(numero)) return
 
-    setSelectedSeats((prev) => {
-      const isRemoving = prev.includes(numero)
-      const newSeats = isRemoving ? prev.filter((s) => s !== numero) : [...prev, numero]
-      
-      // Lógica de seguridad del límite
-      if (!isRemoving && prev.length >= 10) {
+    const isRemoving = selectedSeats.includes(numero)
+
+    if (isRemoving) {
+      // 1. Deselección (Liberación inmediata)
+      setSelectedSeats((prev) => prev.filter((s) => s !== numero))
+      try {
+        await fetch(`${API_URL}/api/viajes/${viajeId}/liberar-asiento`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ numero_asiento: numero, session_id: sessionId })
+        })
+        fetchViaje(true) // Refrescar visualmente
+      } catch (error) {
+        console.error("Error liberando asiento", error)
+      }
+      return
+    }
+
+    // 2. Lógica de seguridad del límite visual
+    if (selectedSeats.length >= 10) {
+      Swal.fire({
+        title: "Límite alcanzado",
+        text: `Solo puede seleccionar un máximo de 10 asientos.`,
+        icon: "warning",
+        confirmButtonColor: "#ea580c",
+      })
+      return
+    }
+
+    // 3. Selección (Bloqueo en API)
+    try {
+      const res = await fetch(`${API_URL}/api/viajes/${viajeId}/bloquear-asiento`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numero_asiento: numero, session_id: sessionId })
+      })
+
+      if (res.ok) {
+        setSelectedSeats((prev) => [...prev, numero])
+      } else {
+        const errorData = await res.json()
         Swal.fire({
-          title: "Límite alcanzado",
-          text: `Solo puede seleccionar un máximo de 10 asientos.`,
-          icon: "warning",
+          title: "Asiento no disponible",
+          text: errorData.detail ?? "Alguien más acaba de apartar este asiento.",
+          icon: "error",
           confirmButtonColor: "#ea580c",
         })
-        return prev
+        fetchViaje(true) // Alguien más lo tomó, actualizamos el mapa para pintarlo de gris
       }
-      return newSeats
-    })
+    } catch (error) {
+      Swal.fire({
+        title: "Error de conexión",
+        text: "No se pudo apartar el asiento. Verifique su conexión.",
+        icon: "error",
+        confirmButtonColor: "#ea580c",
+      })
+    }
   }
 
   // ── Step transitions ─────────────────────────────────────
@@ -158,7 +231,7 @@ export default function ReservarPage() {
         numero_asiento: s,
         nombre_pasajero: "",
         email_pasajero: "",
-        punto_abordaje_pasajero: "", // INICIALIZADO AQUÍ
+        punto_abordaje_pasajero: "",
       }))
     )
     setStep("form")
@@ -181,7 +254,6 @@ export default function ReservarPage() {
         return
     }
     
-    // Validación genérica (el textbox de abordaje lo validaremos dentro del form)
     for (const p of pasajeros) {
       if (p.nombre_pasajero.trim().length < 2) {
         Swal.fire({ title: "Datos incompletos", text: `Ingrese el nombre para el asiento #${p.numero_asiento}.`, icon: "warning", confirmButtonColor: "#ea580c" })
@@ -191,10 +263,16 @@ export default function ReservarPage() {
 
     setIsSubmitting(true)
     try {
+      // AGREGAMOS el session_id en el payload por si el backend lo necesita para 
+      // cruzar información con la tabla de bloqueos al momento de emitir el ticket.
       const res = await fetch(`${API_URL}/api/viajes/${viajeId}/reservar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: tokenReserva, asientos: pasajeros }),
+        body: JSON.stringify({ 
+          token: tokenReserva, 
+          asientos: pasajeros,
+          session_id: sessionId 
+        }),
       })
 
       if (!res.ok) {
@@ -202,7 +280,7 @@ export default function ReservarPage() {
         throw new Error(body?.detail ?? "Error al validar el token o reservar.")
       }
 
-      setTimerActive(false) // Detenemos el reloj al ser exitoso
+      setTimerActive(false)
       setStep("done")
       window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (err: any) {
@@ -270,7 +348,6 @@ export default function ReservarPage() {
             tipoPlantilla={viaje.tipo_plantilla}
             onToggle={toggleSeat}
             onContinue={goToForm}
-            // Controladores del Timer para SeatSelector
             onStartTimer={() => { setTimerSeconds(TIMER_MINUTES * 60); setTimerActive(true); }}
             onResetTimer={() => { setTimerActive(false); setTimerSeconds(TIMER_MINUTES * 60); if (intervalRef.current) clearInterval(intervalRef.current); }}
           />

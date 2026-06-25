@@ -1,19 +1,26 @@
-# app/routes/viajes.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.viaje import Viaje
 from app.models.bus import Bus
 from app.models.asiento import Asiento, EstadoAsiento
 from app.models.ticket import Ticket
-from app.schemas.viaje import ViajeCreate, ViajeUpdate, ViajeResponse, ViajeStats
+from app.models.asientos_bloqueados import AsientoBloqueado
+from app.schemas.viaje import ViajeCreate, ViajeUpdate
 from app.routes.auth import get_current_user
 
 router = APIRouter(prefix="/viajes", tags=["viajes"])
 
+# ─── SCHEMAS LOCALES ────────────────────────────────────────
+class BloqueoRequest(BaseModel):
+    numero_asiento: str
+    session_id: str
+
+# ─── ENDPOINTS ADMINISTRATIVOS ───────────────────────────────
 @router.post("/", status_code=201)
 def crear_viaje(
     viaje_data: ViajeCreate,
@@ -88,7 +95,6 @@ def obtener_viajes(
         query = query.filter(Viaje.fecha_salida < datetime.now(timezone.utc))
     
     viajes = query.order_by(Viaje.fecha_salida.desc()).all()
-    
     return [formatear_viaje(v) for v in viajes]
 
 @router.get("/{viaje_id}")
@@ -98,10 +104,8 @@ def obtener_viaje(
     current_user: dict = Depends(get_current_user)
 ):
     viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
-    
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado")
-    
     return formatear_viaje(viaje)
 
 @router.put("/{viaje_id}")
@@ -112,20 +116,13 @@ def actualizar_viaje(
     current_user: dict = Depends(get_current_user)
 ):
     viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
-    
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado")
     
     if viaje_data.bus_id and viaje_data.bus_id != viaje.bus_id:
-        tickets = db.query(Ticket).join(Asiento).filter(
-            Asiento.viaje_id == viaje_id
-        ).count()
-        
+        tickets = db.query(Ticket).join(Asiento).filter(Asiento.viaje_id == viaje_id).count()
         if tickets > 0:
-            raise HTTPException(
-                status_code=400,
-                detail="No se puede cambiar el bus porque ya hay tickets emitidos"
-            )
+            raise HTTPException(status_code=400, detail="No se puede cambiar el bus porque ya hay tickets emitidos")
         
         bus = db.query(Bus).filter(Bus.id == viaje_data.bus_id).first()
         if not bus:
@@ -138,33 +135,22 @@ def actualizar_viaje(
         viaje.bus_id = viaje_data.bus_id
     
     update_data = viaje_data.model_dump(exclude_unset=True)
-    
-    if "nombre" in update_data:
-        viaje.nombre = update_data["nombre"]
-    if "lugar_abordaje" in update_data:
-        viaje.lugar_abordaje = update_data["lugar_abordaje"]
-    if "precio" in update_data:
-        viaje.precio = update_data["precio"]
+    if "nombre" in update_data: viaje.nombre = update_data["nombre"]
+    if "lugar_abordaje" in update_data: viaje.lugar_abordaje = update_data["lugar_abordaje"]
+    if "precio" in update_data: viaje.precio = update_data["precio"]
     
     if "fecha_salida" in update_data or "hora_salida" in update_data:
         fecha = viaje.fecha_salida.date()
         hora = viaje.hora_salida
-        
-        if "fecha_salida" in update_data:
-            fecha = update_data["fecha_salida"]
+        if "fecha_salida" in update_data: fecha = update_data["fecha_salida"]
         if "hora_salida" in update_data:
             hora = datetime.strptime(update_data["hora_salida"], "%H:%M").time()
             viaje.hora_salida = hora
-        
         viaje.fecha_salida = datetime.combine(fecha, hora)
     
     db.commit()
     db.refresh(viaje)
-    
-    return {
-        "message": "Viaje actualizado exitosamente",
-        "viaje": formatear_viaje(viaje)
-    }
+    return {"message": "Viaje actualizado exitosamente", "viaje": formatear_viaje(viaje)}
 
 @router.delete("/{viaje_id}")
 def eliminar_viaje(
@@ -173,69 +159,51 @@ def eliminar_viaje(
     current_user: dict = Depends(get_current_user)
 ):
     viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
-    
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado")
     
-    # 1. Verificamos si hay impacto financiero/operativo
-    tickets = db.query(Ticket).join(Asiento).filter(
-        Asiento.viaje_id == viaje_id
-    ).count()
-    
-    # 2. SOFT DELETE (Cancelación Lógica)
+    tickets = db.query(Ticket).join(Asiento).filter(Asiento.viaje_id == viaje_id).count()
     if tickets > 0:
-        # Bloqueamos el borrado físico y cambiamos el estado
         viaje.estado = "cancelado"
         db.commit()
         return {
-            "message": f"El viaje tiene {tickets} tickets vendidos. Se ha marcado como CANCELADO en lugar de eliminarse.",
+            "message": f"El viaje tiene {tickets} tickets vendidos. Marcado como CANCELADO.",
             "accion": "soft_delete",
             "estado_actual": "cancelado"
         }
     
-    # 3. HARD DELETE (Borrado Físico - Solo si tickets == 0)
     from app.models.token import Token
     db.query(Token).filter(Token.viaje_id == viaje_id).delete(synchronize_session=False)
     db.query(Asiento).filter(Asiento.viaje_id == viaje_id).delete(synchronize_session=False)
     db.delete(viaje)
     db.commit()
-    
-    return {
-        "message": "Viaje eliminado físicamente exitosamente.",
-        "accion": "hard_delete"
-    }
+    return {"message": "Viaje eliminado físicamente exitosamente.", "accion": "hard_delete"}
 
+# ─── ENDPOINTS PÚBLICOS (SISTEMA DE ASIENTOS) ────────────────
 @router.get("/publico/{viaje_id}")
-def obtener_viaje_publico(
-    viaje_id: int, 
-    db: Session = Depends(get_db)
-):
-    """
-    ENDPOINT PÚBLICO: Sin validación de usuario (current_user).
-    Provee los datos necesarios para la pantalla de selección de asientos del cliente.
-    """
+def obtener_viaje_publico(viaje_id: int, db: Session = Depends(get_db)):
     viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
-    
     if not viaje:
-        raise HTTPException(
-            status_code=404, 
-            detail="El enlace del viaje no es válido o ha expirado."
-        )
+        raise HTTPException(status_code=404, detail="El enlace del viaje no es válido o ha expirado.")
     
-    # 1. Obtener capacidad total del bus asignado
-    total_asientos = viaje.bus.capacidad_total if viaje.bus else 0
-    
-    # 2. Buscar qué asientos ya no están disponibles
+    # Limpieza pasiva utilizando UTC para concordar con Supabase
+    db.query(AsientoBloqueado).filter(AsientoBloqueado.expira_en < datetime.now(timezone.utc)).delete()
+    db.commit()
+
     asientos_reservados_query = db.query(Asiento.numero).filter(
         Asiento.viaje_id == viaje_id,
         Asiento.estado == "reservado"
     ).all()
-    asientos_ocupados = [str(asiento[0]) for asiento in asientos_reservados_query]
     
-    # 3. Extraer el tipo de plantilla (si existe, si no fallback a 2x2 estándar)
+    bloqueos_query = db.query(AsientoBloqueado.numero_asiento).filter(AsientoBloqueado.viaje_id == viaje_id).all()
+
+    ocupados_bd = [str(a[0]) for a in asientos_reservados_query]
+    bloqueados_temp = [str(a[0]) for a in bloqueos_query]
+    asientos_ocupados = list(set(ocupados_bd + bloqueados_temp))
+    
+    total_asientos = viaje.bus.capacidad_total if viaje.bus else 0
     tipo_plantilla = viaje.bus.tipo_plantilla if viaje.bus and hasattr(viaje.bus, 'tipo_plantilla') else "2x2_estandar"
     
-    # 4. Retornar el diccionario completo
     return {
         "id": viaje.id,
         "nombre": viaje.nombre,
@@ -247,36 +215,54 @@ def obtener_viaje_publico(
         "asientos_ocupados": asientos_ocupados,
         "tipo_plantilla": tipo_plantilla
     }
-# ============================================
-# ESTADÍSTICAS
-# ============================================
+
+@router.post("/{viaje_id}/bloquear-asiento")
+async def bloquear_asiento(viaje_id: int, req: BloqueoRequest, db: Session = Depends(get_db)):
+    db.query(AsientoBloqueado).filter(AsientoBloqueado.expira_en < datetime.now(timezone.utc)).delete()
+    
+    bloqueo_activo = db.query(AsientoBloqueado).filter(
+        AsientoBloqueado.viaje_id == viaje_id,
+        AsientoBloqueado.numero_asiento == req.numero_asiento
+    ).first()
+
+    if bloqueo_activo:
+        if bloqueo_activo.session_id == req.session_id:
+            bloqueo_activo.expira_en = datetime.now(timezone.utc) + timedelta(minutes=20)
+            db.commit()
+            return {"status": "success"}
+        raise HTTPException(status_code=409, detail="El asiento acaba de ser tomado por otra persona.")
+
+    nuevo_bloqueo = AsientoBloqueado(
+        viaje_id=viaje_id,
+        numero_asiento=req.numero_asiento,
+        session_id=req.session_id,
+        expira_en=datetime.now(timezone.utc) + timedelta(minutes=20)
+    )
+    db.add(nuevo_bloqueo)
+    db.commit()
+    return {"status": "success"}
+
+@router.delete("/{viaje_id}/liberar-asiento")
+async def liberar_asiento(viaje_id: int, req: BloqueoRequest, db: Session = Depends(get_db)):
+    db.query(AsientoBloqueado).filter(
+        AsientoBloqueado.viaje_id == viaje_id,
+        AsientoBloqueado.numero_asiento == req.numero_asiento,
+        AsientoBloqueado.session_id == req.session_id
+    ).delete()
+    db.commit()
+    return {"status": "success"}
+
+# ─── ESTADÍSTICAS Y HELPERS ──────────────────────────────────
 @router.get("/{viaje_id}/stats")
-def stats_viaje(
-    viaje_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
+def stats_viaje(viaje_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
-    if not viaje:
-        raise HTTPException(status_code=404, detail="Viaje no encontrado")
+    if not viaje: raise HTTPException(status_code=404, detail="Viaje no encontrado")
     
     total = db.query(Asiento).filter(Asiento.viaje_id == viaje_id).count()
-    disponibles = db.query(Asiento).filter(
-        Asiento.viaje_id == viaje_id,
-        Asiento.estado == "disponible"
-    ).count()
-    reservados = db.query(Asiento).filter(
-        Asiento.viaje_id == viaje_id,
-        Asiento.estado == "reservado"
-    ).count()
-    validados = db.query(Ticket).join(Asiento).filter(
-        Asiento.viaje_id == viaje_id,
-        Ticket.estado == "valido"
-    ).count()
-    escaneados = db.query(Ticket).join(Asiento).filter(
-        Asiento.viaje_id == viaje_id,
-        Ticket.estado == "usado"
-    ).count()
+    disponibles = db.query(Asiento).filter(Asiento.viaje_id == viaje_id, Asiento.estado == "disponible").count()
+    reservados = db.query(Asiento).filter(Asiento.viaje_id == viaje_id, Asiento.estado == "reservado").count()
+    validados = db.query(Ticket).join(Asiento).filter(Asiento.viaje_id == viaje_id, Ticket.estado == "valido").count()
+    escaneados = db.query(Ticket).join(Asiento).filter(Asiento.viaje_id == viaje_id, Ticket.estado == "usado").count()
     
     return {
         "total_asientos": total,
@@ -287,12 +273,8 @@ def stats_viaje(
         "porcentaje_ocupacion": round((reservados / total * 100), 1) if total > 0 else 0
     }
 
-# ============================================
-# HELPERS
-# ============================================
 def formatear_viaje(viaje: Viaje) -> dict:
     asientos_vendidos = len([a for a in viaje.asientos if getattr(a, "estado", "") == "reservado"])
-    
     return {
         "id": viaje.id,
         "nombre": viaje.nombre,
