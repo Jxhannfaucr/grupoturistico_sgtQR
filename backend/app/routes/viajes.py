@@ -1,12 +1,14 @@
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 from app.database import get_db
 from app.models.viaje import Viaje
 from app.models.bus import Bus
+from app.models.token import Token
 from app.models.asiento import Asiento, EstadoAsiento
 from app.models.ticket import Ticket
 from app.models.asientos_bloqueados import AsientoBloqueado
@@ -19,6 +21,18 @@ router = APIRouter(prefix="/viajes", tags=["viajes"])
 class BloqueoRequest(BaseModel):
     numero_asiento: str
     session_id: str
+
+class PasajeroReserva(BaseModel):
+    numero_asiento: str
+    nombre_pasajero: str
+    punto_abordaje_pasajero: str
+    email_pasajero: Optional[str] = None
+    telefono_pasajero: Optional[str] = None
+
+class ReservaRequestFinal(BaseModel):
+    token: str
+    session_id: str
+    asientos: List[PasajeroReserva]
 
 # ─── ENDPOINTS ADMINISTRATIVOS ───────────────────────────────
 @router.post("/", status_code=201)
@@ -179,13 +193,12 @@ def eliminar_viaje(
     db.commit()
     return {"message": "Viaje eliminado físicamente exitosamente.", "accion": "hard_delete"}
 
-# ─── ENDPOINTS PÚBLICOS (SISTEMA DE ASIENTOS) ────────────────
-from fastapi import Query
 
+# ─── ENDPOINTS PÚBLICOS (SISTEMA DE ASIENTOS) ────────────────
 @router.get("/publico/{viaje_id}")
 def obtener_viaje_publico(
     viaje_id: int, 
-    session_id: Optional[str] = Query(None), # <-- Recibimos la identidad del cliente
+    session_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
@@ -226,8 +239,8 @@ def obtener_viaje_publico(
         "lugar_abordaje": viaje.lugar_abordaje,
         "precio": float(viaje.precio) if viaje.precio else 0.0,
         "total_asientos": total_asientos,
-        "asientos_ocupados": list(set(ocupados_por_otros)), # Solo los de otros + vendidos
-        "mis_asientos": mis_asientos, # Los que el cliente actual tiene bloqueados a su favor
+        "asientos_ocupados": list(set(ocupados_por_otros)),
+        "mis_asientos": mis_asientos,
         "tipo_plantilla": tipo_plantilla
     }
 
@@ -266,6 +279,76 @@ async def liberar_asiento(viaje_id: int, req: BloqueoRequest, db: Session = Depe
     ).delete()
     db.commit()
     return {"status": "success"}
+
+# ─── ENDPOINT DE CHECKOUT (RESERVA FINAL) ─────────────────────
+@router.post("/{viaje_id}/reservar")
+async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session = Depends(get_db)):
+    viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    token_db = db.query(Token).filter(Token.codigo == req.token, Token.viaje_id == viaje_id).first()
+    if not token_db:
+        raise HTTPException(status_code=401, detail="Token inválido o no pertenece a este viaje.")
+
+    asientos_pedidos = [p.numero_asiento for p in req.asientos]
+
+    bloqueos = db.query(AsientoBloqueado).filter(
+        AsientoBloqueado.viaje_id == viaje_id,
+        AsientoBloqueado.numero_asiento.in_(asientos_pedidos),
+        AsientoBloqueado.session_id == req.session_id
+    ).all()
+
+    if len(bloqueos) != len(asientos_pedidos):
+        raise HTTPException(
+            status_code=400, 
+            detail="Inconsistencia de sesión. Algunos asientos expiraron o fueron tomados. Refresque la página."
+        )
+
+    try:
+        tickets_generados = []
+
+        for pasajero in req.asientos:
+            asiento_db = db.query(Asiento).filter(
+                Asiento.viaje_id == viaje_id, 
+                Asiento.numero == pasajero.numero_asiento
+            ).first()
+
+            if not asiento_db:
+                raise ValueError(f"El asiento {pasajero.numero_asiento} no existe.")
+
+            asiento_db.estado = "reservado"
+            hash_qr = str(uuid.uuid4())
+
+            nuevo_ticket = Ticket(
+                asiento_id=asiento_db.id,
+                token_id=token_db.id,
+                nombre_pasajero=pasajero.nombre_pasajero,
+                email_pasajero=pasajero.email_pasajero,
+                qr_hash=hash_qr,
+                estado="valido",
+                punto_abordaje_pasajero=pasajero.punto_abordaje_pasajero, 
+                telefono_pasajero=pasajero.telefono_pasajero
+            )
+            db.add(nuevo_ticket)
+            tickets_generados.append(hash_qr)
+
+        db.query(AsientoBloqueado).filter(
+            AsientoBloqueado.viaje_id == viaje_id,
+            AsientoBloqueado.session_id == req.session_id
+        ).delete()
+
+        db.commit()
+        return {
+            "status": "success", 
+            "message": "Reserva confirmada exitosamente.",
+            "hashes": tickets_generados
+        }
+
+    except Exception as e:
+        db.rollback() 
+        raise HTTPException(status_code=500, detail=f"Error interno procesando la reserva: {str(e)}")
+
 
 # ─── ESTADÍSTICAS Y HELPERS ──────────────────────────────────
 @router.get("/{viaje_id}/stats")

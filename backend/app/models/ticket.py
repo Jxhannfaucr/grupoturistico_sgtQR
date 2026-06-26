@@ -5,12 +5,10 @@ from datetime import datetime, timezone
 
 from app.database import Base
 
-
 class EstadoTicket(str, enum.Enum):
     VALIDO = "valido"
     USADO = "usado"
     CANCELADO = "cancelado"
-
 
 class Ticket(Base):
     __tablename__ = "tickets"
@@ -20,6 +18,11 @@ class Ticket(Base):
     token_id = Column(Integer, ForeignKey("tokens.id"), nullable=False)
     nombre_pasajero = Column(String, nullable=False)
     email_pasajero = Column(String, nullable=True)
+    
+    # ── Nombres exactos a tu BD en Supabase ──
+    punto_abordaje_pasajero = Column(String, nullable=True)
+    telefono_pasajero = Column(String, nullable=True) 
+    
     qr_hash = Column(String, unique=True, nullable=False)
     estado = Column(
         SQLEnum(
