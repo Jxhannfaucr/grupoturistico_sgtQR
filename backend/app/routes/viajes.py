@@ -291,6 +291,17 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session
     if not token_db:
         raise HTTPException(status_code=401, detail="Token inválido o no pertenece a este viaje.")
 
+    cantidad_solicitada = len(req.asientos)
+    capacidad_restante = token_db.capacidad_total - token_db.capacidad_usada
+
+    if cantidad_solicitada > capacidad_restante:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Este token solo permite {token_db.capacidad_total} asiento(s). "
+                   f"Ya se usaron {token_db.capacidad_usada}. "
+                   f"Solicitó {cantidad_solicitada}."
+        )
+
     asientos_pedidos = [p.numero_asiento for p in req.asientos]
 
     bloqueos = db.query(AsientoBloqueado).filter(
@@ -300,17 +311,12 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session
     ).all()
 
     if len(bloqueos) != len(asientos_pedidos):
-        raise HTTPException(
-            status_code=400, 
-            detail="Inconsistencia de sesión. Algunos asientos expiraron o fueron tomados. Refresque la página."
-        )
+        raise HTTPException(status_code=400, detail="Algunos asientos expiraron. Refresque la página.")
 
     try:
-        tickets_generados = []
-
         for pasajero in req.asientos:
             asiento_db = db.query(Asiento).filter(
-                Asiento.viaje_id == viaje_id, 
+                Asiento.viaje_id == viaje_id,
                 Asiento.numero == pasajero.numero_asiento
             ).first()
 
@@ -331,7 +337,8 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session
                 telefono_pasajero=pasajero.telefono_pasajero
             )
             db.add(nuevo_ticket)
-            tickets_generados.append(hash_qr)
+
+        token_db.capacidad_usada += cantidad_solicitada
 
         db.query(AsientoBloqueado).filter(
             AsientoBloqueado.viaje_id == viaje_id,
@@ -339,15 +346,11 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session
         ).delete()
 
         db.commit()
-        return {
-            "status": "success", 
-            "message": "Reserva confirmada exitosamente.",
-            "hashes": tickets_generados
-        }
+        return {"status": "success", "message": "Reserva confirmada exitosamente."}
 
     except Exception as e:
-        db.rollback() 
-        raise HTTPException(status_code=500, detail=f"Error interno procesando la reserva: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
 # ─── ESTADÍSTICAS Y HELPERS ──────────────────────────────────
