@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Pase de Abordaje - Grupo Turístico</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 1.5cm;
+        }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+        }
+        h1, h2, h3, p {
+            margin: 0;
+            padding: 0;
+        }
+        .text-orange { color: #ea580c; }
+        .bg-orange { background-color: #ea580c; color: white; }
+        
+        /* Contenedor del Tiquete */
+        .ticket-container {
+            width: 100%;
+            border: 2px solid #ea580c;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+        }
+        
+        /* Cabecera del Tiquete */
+        .ticket-header {
+            background-color: #ea580c;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .ticket-header h2 { font-size: 20px; letter-spacing: 2px; text-transform: uppercase;}
+        .ticket-header p { font-size: 12px; margin-top: 5px; opacity: 0.9; }
+
+        /* Cuerpo del Tiquete */
+        .ticket-body {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .ticket-body td {
+            padding: 20px;
+            vertical-align: top;
+        }
+        .col-datos { width: 70%; border-right: 1px dashed #cbd5e1; }
+        .col-qr { width: 30%; text-align: center; }
+
+        /* Filas de Información */
+        .info-table { width: 100%; margin-bottom: 15px; border-collapse: collapse; }
+        .info-table td { padding: 5px 0; }
+        .label { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: bold; }
+        .value { font-size: 16px; font-weight: bold; color: #0f172a; }
+        
+        /* Sección QR */
+        .qr-code { width: 140px; height: 140px; margin: 0 auto; }
+        .qr-text { font-size: 11px; color: #64748b; margin-top: 10px; }
+
+        /* Normativas */
+        .normativas {
+            page-break-before: always;
+            font-size: 11px;
+            color: #334155;
+            line-height: 1.5;
+        }
+        .normativas h3 { font-size: 16px; color: #ea580c; margin-bottom: 15px; text-align: center; }
+        .normativas ul { padding-left: 20px; }
+        .normativas li { margin-bottom: 8px; text-align: justify; }
+    </style>
+</head>
+<body>
+
+    {% for ticket in tickets %}
+    <div class="ticket-container">
+        
+        <div class="ticket-header">
+            <h2>PASE DE ABORDAJE</h2>
+            <p>{{ viaje.nombre }}</p>
+        </div>
+
+        <table class="ticket-body">
+            <tr>
+                <td class="col-datos">
+                    <table class="info-table">
+                        <tr>
+                            <td colspan="2">
+                                <div class="label">Nombre del Pasajero</div>
+                                <div class="value text-orange" style="font-size: 22px;">{{ ticket.nombre_pasajero }}</div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table class="info-table">
+                        <tr>
+                            <td width="50%">
+                                <div class="label">Fecha de Salida</div>
+                                <div class="value">{{ viaje.fecha_salida }}</div>
+                            </td>
+                            <td width="50%">
+                                <div class="label">Hora de Salida</div>
+                                <div class="value">{{ viaje.hora_salida }}</div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table class="info-table">
+                        <tr>
+                            <td width="60%">
+                                <div class="label">Punto de Abordaje</div>
+                                <div class="value">{{ ticket.lugar_abordaje }}</div>
+                            </td>
+                            <td width="40%">
+                                <div class="label">Asiento</div>
+                                <div class="value text-orange" style="font-size: 24px;">#{{ ticket.numero_asiento }}</div>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+
+                <td class="col-qr">
+                    <div class="label" style="margin-bottom: 10px;">ESCANEAR AL ABORDAR</div>
+                    <img class="qr-code" src="data:image/png;base64,{{ ticket.qr_base64 }}" alt="Codigo QR">
+                    <div class="qr-text">Tiquete Intransferible</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+    {% endfor %}
+
+    <div class="normativas">
+        <h3>NORMATIVAS E INDICACIONES DEL GRUPO TURÍSTICO</h3>
+        <ul>
+            <li>Queda prohibido ingerir sustancias tóxicas (cigarros, vaper, drogas, etc.) dentro del bus en desplazamiento. En caso de operativo policial, los cargos son asumidos por el infractor; el personal no se hace responsable.</li>
+            <li>El personal no se hace responsable por pertenencias en cabina. El equipaje en área de maletas llevará una ficha de identificación y no podrá ser manipulado hasta el destino final.</li>
+            <li>La labor del personal es velar por el bienestar dentro de la unidad. Si ocurre alguna irregularidad incontrolable, se dará aviso inmediato al 9-1-1.</li>
+            <li>El personal no asume responsabilidad por menores de edad sin la supervisión de un adulto encargado.</li>
+            <li>Las reservaciones requieren un 50% de adelanto. La cancelación total debe realizarse mínimo 10 días antes de la gira.</li>
+            <li>No se realizan devoluciones de dinero, a excepción de emergencias médicas graves o fallecimiento comprobable mediante documentación oficial.</li>
+            <li>Se recomienda a personas vulnerables a mareos llevar medicamentos preventivos y bolsas. Quienes padezcan enfermedades crónicas deben portar sus medicinas e informar al personal encargado sobre cualquier anomalía.</li>
+            <li>El uso de este Pase de Abordaje es <strong>obligatorio</strong> y puede ser solicitado en cualquier momento del recorrido.</li>
+            <li>Porte siempre su cédula de identidad y documentos de identificación de menores.</li>
+        </ul>
+        <p style="text-align: center; font-weight: bold; margin-top: 20px;">Contacto: grupoturisco.cr@gmail.com | Teléfono: 6177 0795</p>
+    </div>
+
+</body>
+</html>

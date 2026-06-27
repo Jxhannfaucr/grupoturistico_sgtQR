@@ -88,10 +88,56 @@ export function ConfirmationScreen({
     return () => clearTimeout(t)
   }, [])
 
-  // Preparado para la Fase 2 (Generación de PDF)
-  const handleDownloadPDF = () => {
-    console.log("Iniciando descarga del PDF...")
-    // Aquí conectaremos el endpoint del PDF más adelante
+  // Generación de PDF
+  const handleDownloadPDF = async () => {
+  try {
+      // Obtenemos el slug de la URL (ej: "19-zygos")
+      const pathParts = window.location.pathname.split('/');
+      const slug = pathParts[pathParts.length - 1]; 
+      
+      // EXTRAEMOS SOLO EL NÚMERO (Regex para capturar números al inicio)
+      const match = slug.match(/^(\d+)/);
+      const viajeId = match ? match[1] : null;
+      
+      if (!viajeId || asientos.length === 0) {
+        alert("No se pudo identificar el ID del viaje.");
+        return;
+      }
+
+      // 1. Construimos la URL base usando la variable de entorno
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+      
+      // 2. Usamos el objeto URL para construir la ruta de forma segura
+      // Esto garantiza que el slash /api/viajes/ esté perfecto
+      const url = new URL(`${baseUrl}/api/viajes/${viajeId}/descargar-pdf`);
+      url.searchParams.append("asientos", asientos.join(','));
+
+      console.log("Descargando de:", url.toString());
+
+      const res = await fetch(url.toString(), {
+        method: "GET",
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Error del servidor:", errorText);
+        throw new Error("No se pudo generar el documento.");
+      }
+
+      const blob = await res.blob();
+      const urlBlob = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = urlBlob;
+      a.download = `Tiquete_${viajeName.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(urlBlob);
+      a.remove();
+
+    } catch (error) {
+      console.error(error);
+      alert("Hubo un problema al generar el PDF. Verifica la consola.");
+    }
   }
 
   return (

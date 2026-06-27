@@ -5,6 +5,14 @@ from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, EmailStr
 
+# pdfs
+import io
+import base64
+import qrcode
+from fastapi.responses import StreamingResponse
+from jinja2 import Environment, FileSystemLoader
+from xhtml2pdf import pisa
+
 from app.database import get_db
 from app.models.viaje import Viaje
 from app.models.bus import Bus
@@ -396,3 +404,74 @@ def formatear_viaje(viaje: Viaje) -> dict:
         "asientos_vendidos_count": asientos_vendidos,
         "estado": getattr(viaje, "estado", "activo")
     }
+
+# ENDPOINT GENERACION DE PDF
+@router.get("/{viaje_id}/descargar-pdf")
+async def descargar_pdf(viaje_id: int, asientos: str, db: Session = Depends(get_db)):
+    viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado.")
+
+    # 1. Buscar los tickets reales correspondientes a esos asientos
+    lista_asientos = asientos.split(",")
+    tickets_db = db.query(Ticket).join(Asiento).filter(
+        Asiento.viaje_id == viaje_id,
+        Asiento.numero.in_(lista_asientos)
+    ).all()
+
+    if not tickets_db:
+        raise HTTPException(status_code=404, detail="No se encontraron los tiquetes solicitados.")
+
+    # 2. Preparar los datos e inyectar el QR en Base64
+    tickets_data = []
+    for t in tickets_db:
+        # Generar código QR
+        qr = qrcode.QRCode(version=1, box_size=5, border=1)
+        qr.add_data(t.qr_hash)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Guardar en memoria y convertir a texto Base64 para incrustar en HTML
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+        tickets_data.append({
+            "nombre_pasajero": t.nombre_pasajero,
+            "lugar_abordaje": t.punto_abordaje_pasajero or viaje.lugar_abordaje,
+            "numero_asiento": t.asiento.numero,
+            "qr_base64": img_b64
+        })
+
+    # 3. Cargar la plantilla HTML con Jinja2
+    env = Environment(loader=FileSystemLoader("app/templates"))
+    template = env.get_template("tiquete.html")
+    
+    # Formatear fechas de forma segura
+    fecha_str = viaje.fecha_salida.strftime("%d/%m/%Y") if viaje.fecha_salida else "--"
+    hora_str = viaje.hora_salida.strftime("%I:%M %p") if viaje.hora_salida else "--"
+
+    html_renderizado = template.render(
+        viaje={
+            "nombre": viaje.nombre,
+            "fecha_salida": fecha_str,
+            "hora_salida": hora_str
+        },
+        tickets=tickets_data
+    )
+
+    # 4. Convertir HTML a PDF en memoria (xhtml2pdf)
+    pdf_file = io.BytesIO()
+    pisa_status = pisa.CreatePDF(io.StringIO(html_renderizado), dest=pdf_file)
+    
+    if pisa_status.err:
+        raise HTTPException(status_code=500, detail="Error al compilar el PDF")
+
+    pdf_file.seek(0)
+
+    # 5. Devolver como descarga binaria
+    return StreamingResponse(
+        pdf_file, 
+        media_type="application/pdf", 
+        headers={"Content-Disposition": f"attachment; filename=Tiquetes_{viaje.nombre}.pdf"}
+    )
