@@ -23,6 +23,10 @@ from app.models.asientos_bloqueados import AsientoBloqueado
 from app.schemas.viaje import ViajeCreate, ViajeUpdate
 from app.routes.auth import get_current_user
 
+# envio mails
+from fastapi import BackgroundTasks
+from app.services.email_service import enviar_tiquetes_async
+
 router = APIRouter(prefix="/viajes", tags=["viajes"])
 
 # ─── SCHEMAS LOCALES ────────────────────────────────────────
@@ -290,7 +294,7 @@ async def liberar_asiento(viaje_id: int, req: BloqueoRequest, db: Session = Depe
 
 # ─── ENDPOINT DE CHECKOUT (RESERVA FINAL) ─────────────────────
 @router.post("/{viaje_id}/reservar")
-async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session = Depends(get_db)):
+async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado.")
@@ -298,17 +302,6 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session
     token_db = db.query(Token).filter(Token.codigo == req.token, Token.viaje_id == viaje_id).first()
     if not token_db:
         raise HTTPException(status_code=401, detail="Token inválido o no pertenece a este viaje.")
-
-    cantidad_solicitada = len(req.asientos)
-    capacidad_restante = token_db.capacidad_total - token_db.capacidad_usada
-
-    if cantidad_solicitada > capacidad_restante:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Este token solo permite {token_db.capacidad_total} asiento(s). "
-                   f"Ya se usaron {token_db.capacidad_usada}. "
-                   f"Solicitó {cantidad_solicitada}."
-        )
 
     asientos_pedidos = [p.numero_asiento for p in req.asientos]
 
@@ -319,12 +312,18 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session
     ).all()
 
     if len(bloqueos) != len(asientos_pedidos):
-        raise HTTPException(status_code=400, detail="Algunos asientos expiraron. Refresque la página.")
+        raise HTTPException(
+            status_code=400, 
+            detail="Inconsistencia de sesión. Algunos asientos expiraron o fueron tomados. Refresque la página."
+        )
 
     try:
+        # AQUÍ ESTÁ LA VARIABLE QUE FALTABA
+        tickets_generados = []
+
         for pasajero in req.asientos:
             asiento_db = db.query(Asiento).filter(
-                Asiento.viaje_id == viaje_id,
+                Asiento.viaje_id == viaje_id, 
                 Asiento.numero == pasajero.numero_asiento
             ).first()
 
@@ -341,12 +340,11 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session
                 email_pasajero=pasajero.email_pasajero,
                 qr_hash=hash_qr,
                 estado="valido",
-                punto_abordaje_pasajero=pasajero.punto_abordaje_pasajero, 
+                punto_abordaje_pasajero=pasajero.punto_abordaje_pasajero,
                 telefono_pasajero=pasajero.telefono_pasajero
             )
             db.add(nuevo_ticket)
-
-        token_db.capacidad_usada += cantidad_solicitada
+            tickets_generados.append(hash_qr)
 
         db.query(AsientoBloqueado).filter(
             AsientoBloqueado.viaje_id == viaje_id,
@@ -354,10 +352,22 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, db: Session
         ).delete()
 
         db.commit()
-        return {"status": "success", "message": "Reserva confirmada exitosamente."}
+
+        # ─── LANZAR CORREO EN SEGUNDO PLANO ───
+        email_comprador = next((p.email_pasajero for p in req.asientos if p.email_pasajero), None)
+        
+        if email_comprador:
+            tickets_creados = db.query(Ticket).filter(Ticket.qr_hash.in_(tickets_generados)).all()
+            background_tasks.add_task(enviar_tiquetes_async, email_comprador, viaje, tickets_creados)
+
+        return {
+            "status": "success", 
+            "message": "Reserva confirmada exitosamente.",
+            "hashes": tickets_generados
+        }
 
     except Exception as e:
-        db.rollback()
+        db.rollback() 
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
