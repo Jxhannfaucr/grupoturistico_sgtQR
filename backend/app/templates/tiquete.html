@@ -2,153 +2,550 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Pase de Abordaje - Grupo Turístico</title>
+    <title>Pase de Abordaje</title>
     <style>
-        @page {
-            size: letter;
-            margin: 1.5cm;
-        }
+        /* ── Reset & Page ─────────────────────────────────────── */
+        @page { size: letter; margin: 1.6cm 1.4cm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
             font-family: Helvetica, Arial, sans-serif;
             color: #1e293b;
-            margin: 0;
-            padding: 0;
+            background: #f1f5f9;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-        h1, h2, h3, p {
-            margin: 0;
-            padding: 0;
-        }
-        .text-orange { color: #ea580c; }
-        .bg-orange { background-color: #ea580c; color: white; }
-        
-        /* Contenedor del Tiquete */
-        .ticket-container {
-            width: 100%;
-            border: 2px solid #ea580c;
-            border-radius: 12px;
-            margin-bottom: 30px;
-            page-break-inside: avoid;
-        }
-        
-        /* Cabecera del Tiquete */
-        .ticket-header {
-            background-color: #ea580c;
-            color: white;
-            padding: 15px;
-            text-align: center;
-        }
-        
-        .ticket-header h2 { font-size: 20px; letter-spacing: 2px; text-transform: uppercase;}
-        .ticket-header p { font-size: 12px; margin-top: 5px; opacity: 0.9; }
 
-        /* Cuerpo del Tiquete */
-        .ticket-body {
+        /* ── Ticket shell ──────────────────────────────────────── */
+        .ticket-wrap {
+            page-break-inside: avoid;
+            margin-bottom: 28px;
+        }
+        .ticket-shell {
+            width: 100%;
+            border-radius: 14px;
+            border: 1.5px solid #e2e8f0;
+            background: #ffffff;
+            box-shadow: 0 3px 18px rgba(0,0,0,0.09);
+            overflow: hidden;
+        }
+
+        /* ── Accent stripe ─────────────────────────────────────── */
+        .accent-stripe {
+            height: 5px;
+            background: #ea580c;
+            /* fallback sin gradient para motores básicos */
+            background: linear-gradient(90deg, #c2410c 0%, #ea580c 45%, #f97316 100%);
+        }
+
+        /* ─────────────────────────────────────────────────────────
+           HEADER — tabla nativa de 2 columnas
+        ───────────────────────────────────────────────────────── */
+        .tbl-header {
             width: 100%;
             border-collapse: collapse;
+            background: #ffffff;
+            border-bottom: 1px solid #f1f5f9;
         }
-        .ticket-body td {
-            padding: 20px;
+        .tbl-header td { padding: 16px 22px; vertical-align: middle; }
+        .td-logo  { width: 60%; }
+        .td-badge { width: 40%; text-align: right; }
+
+        /* Logo */
+        .logo-tbl { border-collapse: collapse; }
+        .logo-tbl td { vertical-align: middle; padding: 0; }
+        .logo-img-wrap { width: 44px; padding-right: 10px; }
+        .logo-img {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: block;
+            object-fit: contain;
+            background: #ea580c;
+        }
+        .logo-company {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: -0.3px;
+            display: block;
+        }
+        .logo-tagline {
+            font-size: 10px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            display: block;
+            margin-top: 2px;
+        }
+        .badge {
+            display: inline-block;
+            background: #fff7ed;
+            border: 1.5px solid #fed7aa;
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #ea580c;
+            text-transform: uppercase;
+            letter-spacing: 1.4px;
+        }
+
+        /* ─────────────────────────────────────────────────────────
+           ROUTE BAR — tabla nativa 3 columnas sobre fondo oscuro
+        ───────────────────────────────────────────────────────── */
+        .tbl-route {
+            width: 100%;
+            border-collapse: collapse;
+            background: #0f172a;
+        }
+        .tbl-route td {
+            padding: 12px 22px;
+            vertical-align: middle;
+        }
+        .td-origin { width: 36%; }
+        .td-mid    { width: 28%; text-align: center; }
+        .td-dest   { width: 36%; text-align: right; }
+
+        .route-eyebrow {
+            font-size: 9px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 3px;
+        }
+        .route-place {
+            font-size: 13px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+        .route-arrow {
+            font-size: 18px;
+            color: #ea580c;
+            letter-spacing: -3px;
+            display: block;
+        }
+        .route-trip-name {
+            font-size: 9px;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-top: 4px;
+            display: block;
+        }
+
+        /* ─────────────────────────────────────────────────────────
+           BODY — tabla nativa 3 columnas: datos | sep | QR
+        ───────────────────────────────────────────────────────── */
+        .tbl-body {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+        }
+        .td-data {
+            width: 62%;
+            padding: 22px 22px 18px 22px;
             vertical-align: top;
         }
-        .col-datos { width: 70%; border-right: 1px dashed #cbd5e1; }
-        .col-qr { width: 30%; text-align: center; }
+        .td-sep {
+            width: 2px;
+            padding: 0;
+            vertical-align: middle;
+            border-left: 2px dashed #e2e8f0;
+        }
+        .td-qr {
+            width: 38%;
+            padding: 22px 18px;
+            vertical-align: middle;
+            text-align: center;
+            background: #fafafa;
+        }
 
-        /* Filas de Información */
-        .info-table { width: 100%; margin-bottom: 15px; border-collapse: collapse; }
-        .info-table td { padding: 5px 0; }
-        .label { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: bold; }
-        .value { font-size: 16px; font-weight: bold; color: #0f172a; }
-        
-        /* Sección QR */
-        .qr-code { width: 140px; height: 140px; margin: 0 auto; }
-        .qr-text { font-size: 11px; color: #64748b; margin-top: 10px; }
+        /* Passenger */
+        .lbl {
+            font-size: 9px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 3px;
+            display: block;
+        }
+        .passenger-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: #ea580c;
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+            margin-bottom: 18px;
+        }
 
-        /* Normativas */
-        .normativas {
-            page-break-before: always;
-            font-size: 11px;
-            color: #334155;
+        /* Info grid inside data col */
+        .tbl-info {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 14px;
+        }
+        .tbl-info td { vertical-align: top; padding: 0; }
+        .tbl-info td + td { padding-left: 16px; }
+
+        .info-val {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .data-rule {
+            height: 1px;
+            background: #f1f5f9;
+            margin: 14px 0;
+        }
+
+        /* Seat badge */
+        .seat-badge {
+            display: inline-block;
+            background: #ea580c;
+            color: #ffffff;
+            border-radius: 10px;
+            padding: 8px 18px 10px;
+            margin-top: 4px;
+        }
+        .seat-badge-lbl {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            opacity: 0.85;
+            display: block;
+            margin-bottom: 1px;
+        }
+        .seat-badge-num {
+            font-size: 30px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            line-height: 1;
+            display: block;
+        }
+
+        /* QR */
+        .qr-lbl {
+            font-size: 9px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .qr-frame {
+            display: inline-block;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 7px;
+            background: #ffffff;
+        }
+        .qr-img { width: 138px; height: 138px; display: block; }
+        .qr-caption {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 10px;
             line-height: 1.5;
         }
-        .normativas h3 { font-size: 16px; color: #ea580c; margin-bottom: 15px; text-align: center; }
-        .normativas ul { padding-left: 20px; }
-        .normativas li { margin-bottom: 8px; text-align: justify; }
+        .qr-caption strong {
+            display: block;
+            color: #475569;
+            font-size: 11px;
+            margin-bottom: 1px;
+        }
+
+        /* ─────────────────────────────────────────────────────────
+           FOOTER — tabla nativa 2 columnas
+        ───────────────────────────────────────────────────────── */
+        .tbl-footer {
+            width: 100%;
+            border-collapse: collapse;
+            background: #f8fafc;
+            border-top: 1px solid #f1f5f9;
+        }
+        .tbl-footer td { padding: 9px 22px; vertical-align: middle; }
+        .footer-note { font-size: 10px; color: #64748b; }
+        .footer-contact { font-size: 10px; color: #94a3b8; text-align: right; }
+        .dot { color: #ea580c; margin: 0 4px; }
+
+        /* ═══════════════════════════════════════════════════════
+           NORMATIVAS
+        ═══════════════════════════════════════════════════════ */
+        .norm-wrap {
+            page-break-before: always;
+            border-radius: 14px;
+            border: 1.5px solid #e2e8f0;
+            background: #ffffff;
+            box-shadow: 0 3px 18px rgba(0,0,0,0.07);
+            overflow: hidden;
+        }
+
+        /* Norm header */
+        .norm-header {
+            background: #0f172a;
+            padding: 20px 28px;
+            text-align: center;
+        }
+        .norm-eyebrow {
+            font-size: 10px;
+            color: #ea580c;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .norm-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        /* Norm body */
+        .norm-body { padding: 26px 30px 20px; }
+
+        .norm-intro {
+            font-size: 11px;
+            color: #475569;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            padding: 10px 12px;
+            border-left: 3px solid #ea580c;
+            background: #fff7ed;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .norm-list { list-style: none; padding: 0; }
+        .norm-list li {
+            font-size: 11px;
+            color: #334155;
+            line-height: 1.6;
+            margin-bottom: 9px;
+            padding-left: 18px;
+            position: relative;
+            text-align: justify;
+        }
+        .norm-list li::before {
+            content: "–";
+            position: absolute;
+            left: 0;
+            color: #ea580c;
+            font-weight: 700;
+        }
+        .norm-highlight {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 7px;
+            padding: 9px 9px 9px 26px !important;
+        }
+        .norm-highlight::before { left: 9px !important; }
+
+        .norm-rule { height: 1px; background: #f1f5f9; margin: 18px 0; }
+
+        /* Norm footer */
+        .tbl-norm-footer {
+            width: 100%;
+            border-collapse: collapse;
+            background: #0f172a;
+        }
+        .tbl-norm-footer td { padding: 13px 26px; vertical-align: middle; }
+        .nf-left  { font-size: 10px; color: #64748b; }
+        .nf-right { font-size: 11px; font-weight: 700; color: #ffffff; text-align: right; }
+        .nf-right span { color: #fb923c; }
     </style>
 </head>
 <body>
 
     {% for ticket in tickets %}
-    <div class="ticket-container">
-        
-        <div class="ticket-header">
-            <h2>PASE DE ABORDAJE</h2>
-            <p>{{ viaje.nombre }}</p>
-        </div>
+    <div class="ticket-wrap">
+    <div class="ticket-shell">
 
-        <table class="ticket-body">
+        <!-- Accent stripe -->
+        <div class="accent-stripe"></div>
+
+        <!-- ══ HEADER ═══════════════════════════════════════════ -->
+        <table class="tbl-header">
             <tr>
-                <td class="col-datos">
-                    <table class="info-table">
+                <td class="td-logo">
+                    <table class="logo-tbl">
                         <tr>
-                            <td colspan="2">
-                                <div class="label">Nombre del Pasajero</div>
-                                <div class="value text-orange" style="font-size: 22px;">{{ ticket.nombre_pasajero }}</div>
+                            <td class="logo-img-wrap">
+                                <!-- Logo real desde el mismo directorio -->
+                                <img src="data:image/jpeg;base64,{{ logo_b64 }}"
+                                     alt="Logo Grupo Turístico"
+                                     class="logo-img">
                             </td>
-                        </tr>
-                    </table>
-
-                    <table class="info-table">
-                        <tr>
-                            <td width="50%">
-                                <div class="label">Fecha de Salida</div>
-                                <div class="value">{{ viaje.fecha_salida }}</div>
-                            </td>
-                            <td width="50%">
-                                <div class="label">Hora de Salida</div>
-                                <div class="value">{{ viaje.hora_salida }}</div>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <table class="info-table">
-                        <tr>
-                            <td width="60%">
-                                <div class="label">Punto de Abordaje</div>
-                                <div class="value">{{ ticket.lugar_abordaje }}</div>
-                            </td>
-                            <td width="40%">
-                                <div class="label">Asiento</div>
-                                <div class="value text-orange" style="font-size: 24px;">#{{ ticket.numero_asiento }}</div>
+                            <td>
+                                <span class="logo-company">Grupo Turístico</span>
+                                <span class="logo-tagline">Viajes &amp; Excursiones</span>
                             </td>
                         </tr>
                     </table>
                 </td>
-
-                <td class="col-qr">
-                    <div class="label" style="margin-bottom: 10px;">ESCANEAR AL ABORDAR</div>
-                    <img class="qr-code" src="data:image/png;base64,{{ ticket.qr_base64 }}" alt="Codigo QR">
-                    <div class="qr-text">Tiquete Intransferible</div>
+                <td class="td-badge">
+                    <span class="badge">&#9632;&nbsp; Pase de Abordaje</span>
                 </td>
             </tr>
         </table>
-    </div>
+
+        <!-- ══ ROUTE BAR ════════════════════════════════════════ -->
+        <table class="tbl-route">
+            <tr>
+                <td class="td-origin">
+                    <div class="route-eyebrow">Origen</div>
+                    <div class="route-place">{{ ticket.lugar_abordaje }}</div>
+                </td>
+                <td class="td-mid">
+                    <span class="route-arrow">&#8594;&#8594;</span>
+                    <span class="route-trip-name">{{ viaje.nombre }}</span>
+                </td>
+                <td class="td-dest">
+                    <div class="route-eyebrow">Destino</div>
+                    <div class="route-place">{{ viaje.nombre }}</div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- ══ BODY ═════════════════════════════════════════════ -->
+        <table class="tbl-body">
+            <tr>
+
+                <!-- Columna de datos -->
+                <td class="td-data">
+
+                    <!-- Pasajero -->
+                    <span class="lbl">&#9654;&nbsp; Pasajero</span>
+                    <div class="passenger-name">{{ ticket.nombre_pasajero }}</div>
+
+                    <!-- Fecha y Hora -->
+                    <table class="tbl-info">
+                        <tr>
+                            <td width="48%">
+                                <span class="lbl">&#128197;&nbsp; Fecha de salida</span>
+                                <div class="info-val">{{ viaje.fecha_salida }}</div>
+                            </td>
+                            <td width="52%">
+                                <span class="lbl">&#128336;&nbsp; Hora de salida</span>
+                                <div class="info-val">{{ viaje.hora_salida }}</div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <div class="data-rule"></div>
+
+                    <!-- Abordaje y Asiento -->
+                    <table class="tbl-info">
+                        <tr>
+                            <td width="55%">
+                                <span class="lbl">&#128205;&nbsp; Punto de abordaje</span>
+                                <div class="info-val">{{ ticket.lugar_abordaje }}</div>
+                            </td>
+                            <td width="45%">
+                                <span class="lbl">&#127918;&nbsp; Asiento asignado</span>
+                                <div class="seat-badge">
+                                    <span class="seat-badge-lbl">N&#176; Asiento</span>
+                                    <span class="seat-badge-num">#{{ ticket.numero_asiento }}</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+
+                </td>
+
+                <!-- Separador punteado -->
+                <td class="td-sep"></td>
+
+                <!-- Columna QR -->
+                <td class="td-qr">
+                    <span class="qr-lbl">&#9632;&nbsp; Escanear al abordar</span>
+                    <div class="qr-frame">
+                        <img class="qr-img"
+                             src="data:image/png;base64,{{ ticket.qr_base64 }}"
+                             alt="Código QR">
+                    </div>
+                    <div class="qr-caption">
+                        <strong>Intransferible</strong>
+                        Válido solo para el<br>titular del pase
+                    </div>
+                </td>
+
+            </tr>
+        </table>
+
+        <!-- ══ FOOTER ═══════════════════════════════════════════ -->
+        <table class="tbl-footer">
+            <tr>
+                <td>
+                    <span class="footer-note">
+                        &#9888;&nbsp; Presente este pase al abordar
+                        <span class="dot">&#8226;</span>
+                        Documento requerido durante todo el recorrido
+                    </span>
+                </td>
+                <td>
+                    <span class="footer-contact">
+                        grupoturisco.cr@gmail.com
+                        <span class="dot">&#8226;</span>
+                        6177&nbsp;0795
+                    </span>
+                </td>
+            </tr>
+        </table>
+
+    </div><!-- /ticket-shell -->
+    </div><!-- /ticket-wrap -->
     {% endfor %}
 
-    <div class="normativas">
-        <h3>NORMATIVAS E INDICACIONES DEL GRUPO TURÍSTICO</h3>
-        <ul>
-            <li>Queda prohibido ingerir sustancias tóxicas (cigarros, vaper, drogas, etc.) dentro del bus en desplazamiento. En caso de operativo policial, los cargos son asumidos por el infractor; el personal no se hace responsable.</li>
-            <li>El personal no se hace responsable por pertenencias en cabina. El equipaje en área de maletas llevará una ficha de identificación y no podrá ser manipulado hasta el destino final.</li>
-            <li>La labor del personal es velar por el bienestar dentro de la unidad. Si ocurre alguna irregularidad incontrolable, se dará aviso inmediato al 9-1-1.</li>
-            <li>El personal no asume responsabilidad por menores de edad sin la supervisión de un adulto encargado.</li>
-            <li>Las reservaciones requieren un 50% de adelanto. La cancelación total debe realizarse mínimo 10 días antes de la gira.</li>
-            <li>No se realizan devoluciones de dinero, a excepción de emergencias médicas graves o fallecimiento comprobable mediante documentación oficial.</li>
-            <li>Se recomienda a personas vulnerables a mareos llevar medicamentos preventivos y bolsas. Quienes padezcan enfermedades crónicas deben portar sus medicinas e informar al personal encargado sobre cualquier anomalía.</li>
-            <li>El uso de este Pase de Abordaje es <strong>obligatorio</strong> y puede ser solicitado en cualquier momento del recorrido.</li>
-            <li>Porte siempre su cédula de identidad y documentos de identificación de menores.</li>
-        </ul>
-        <p style="text-align: center; font-weight: bold; margin-top: 20px;">Contacto: grupoturisco.cr@gmail.com | Teléfono: 6177 0795</p>
-    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         NORMATIVAS
+    ══════════════════════════════════════════════════════════ -->
+    <div class="norm-wrap">
+
+        <div class="accent-stripe"></div>
+
+        <div class="norm-header">
+            <div class="norm-eyebrow">Documento Oficial</div>
+            <div class="norm-title">Normativas e Indicaciones del Grupo Turístico</div>
+        </div>
+
+        <div class="norm-body">
+
+            <div class="norm-intro">
+                Por favor lea detenidamente las siguientes indicaciones antes de abordar la unidad.
+                El uso de este documento implica la aceptación de todas las condiciones descritas a continuación.
+            </div>
+
+            <ul class="norm-list">
+                <li>Queda prohibido ingerir sustancias tóxicas (cigarros, vaper, drogas, etc.) dentro del bus en desplazamiento. En caso de operativo policial, los cargos son asumidos por el infractor; el personal no se hace responsable.</li>
+                <li>El personal no se hace responsable por pertenencias en cabina. El equipaje en área de maletas llevará una ficha de identificación y no podrá ser manipulado hasta el destino final.</li>
+                <li>La labor del personal es velar por el bienestar dentro de la unidad. Si ocurre alguna irregularidad incontrolable, se dará aviso inmediato al 9-1-1.</li>
+                <li>El personal no asume responsabilidad por menores de edad sin la supervisión de un adulto encargado.</li>
+                <li>Las reservaciones requieren un 50% de adelanto. La cancelación total debe realizarse mínimo 10 días antes de la gira.</li>
+                <li>No se realizan devoluciones de dinero, a excepción de emergencias médicas graves o fallecimiento comprobable mediante documentación oficial.</li>
+                <li>Se recomienda a personas vulnerables a mareos llevar medicamentos preventivos y bolsas. Quienes padezcan enfermedades crónicas deben portar sus medicinas e informar al personal encargado sobre cualquier anomalía.</li>
+                <li class="norm-highlight">El uso de este Pase de Abordaje es <strong>obligatorio</strong> y puede ser solicitado en cualquier momento del recorrido.</li>
+                <li>Porte siempre su cédula de identidad y documentos de identificación de menores.</li>
+            </ul>
+
+            <div class="norm-rule"></div>
+
+        </div>
+
+        <table class="tbl-norm-footer">
+            <tr>
+                <td class="nf-left">Grupo Turístico &mdash; Documento de uso oficial</td>
+                <td class="nf-right">
+                    <span>grupoturisco.cr@gmail.com</span>
+                    &nbsp;&#8226;&nbsp;
+                    Tel. 6177&nbsp;0795
+                </td>
+            </tr>
+        </table>
+
+    </div><!-- /norm-wrap -->
 
 </body>
 </html>

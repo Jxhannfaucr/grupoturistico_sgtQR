@@ -451,13 +451,21 @@ async def descargar_pdf(viaje_id: int, asientos: str, db: Session = Depends(get_
     fecha_str = viaje.fecha_salida.strftime("%d/%m/%Y") if viaje.fecha_salida else "--"
     hora_str = viaje.hora_salida.strftime("%I:%M %p") if viaje.hora_salida else "--"
 
+    from pathlib import Path
+
+    logo_path = Path("app/templates/logo_2k.jpeg")
+
+    with open(logo_path, "rb") as f:
+        logo_b64 = base64.b64encode(f.read()).decode("utf-8")
+
     html_renderizado = template.render(
         viaje={
             "nombre": viaje.nombre,
             "fecha_salida": fecha_str,
             "hora_salida": hora_str
         },
-        tickets=tickets_data
+        tickets=tickets_data,
+        logo_b64=logo_b64
     )
 
     # 4. Convertir HTML a PDF en memoria (xhtml2pdf)

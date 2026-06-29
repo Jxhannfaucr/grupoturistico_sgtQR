@@ -16,6 +16,7 @@ import {
   Route,
   ScanLine,
   Search,
+  Download,
   Ticket as TicketIcon,
   Users,
   XCircle,
@@ -252,6 +253,47 @@ export default function TicketsPage() {
       Swal.fire({
         title: "Error",
         text: err?.message ?? "No se pudo cancelar el ticket.",
+        icon: "error",
+        confirmButtonColor: "#171717",
+      })
+    }
+  }
+
+  // ── Descargar PDF Individual ───────────────────────────────
+  async function handleDownloadAdminPDF(ticket: TicketData) {
+    if (!ticket.viaje_id || !ticket.numero_asiento) {
+      Swal.fire("Error", "Faltan datos del viaje o asiento para generar el PDF.", "error")
+      return
+    }
+
+    try {
+      const url = new URL(`${API_URL}/api/viajes/${ticket.viaje_id}/descargar-pdf`)
+      url.searchParams.append("asientos", ticket.numero_asiento)
+
+      // Nota: Si configuraste el endpoint del PDF para que requiera autenticación de admin, 
+      // descomenta la línea de headers de abajo. Si es público, déjalo así.
+      const res = await fetch(url.toString(), { 
+        method: "GET",
+        // headers: getAuthHeaders(),
+      })
+
+      if (!res.ok) throw new Error("No se pudo generar el documento.")
+
+      const blob = await res.blob()
+      const urlBlob = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = urlBlob
+      a.download = `Tiquete_${ticket.nombre_pasajero.replace(/\s+/g, "_")}_Asiento_${ticket.numero_asiento}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(urlBlob)
+      a.remove()
+      
+    } catch (error) {
+      console.error(error)
+      Swal.fire({
+        title: "Error",
+        text: "Hubo un problema al descargar el tiquete individual.",
         icon: "error",
         confirmButtonColor: "#171717",
       })
@@ -535,12 +577,15 @@ export default function TicketsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {/* NUEVO BOTÓN DE DESCARGA */}
                             <DropdownMenuItem
-                              onClick={() => copyToClipboard(ticket.qr_hash)}
+                              onClick={() => handleDownloadAdminPDF(ticket)}
                             >
-                              <ClipboardCopy className="mr-2 h-4 w-4" />
-                              Copiar QR hash
+                              <Download className="mr-2 h-4 w-4" />
+                              Descargar Tiquete (PDF)
                             </DropdownMenuItem>
+
+                            {/* El botón de cancelar se mantiene igual */}
                             {ticket.estado === "valido" && (
                               <>
                                 <DropdownMenuSeparator />
