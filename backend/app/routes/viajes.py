@@ -299,9 +299,21 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, background_
     if not viaje:
         raise HTTPException(status_code=404, detail="Viaje no encontrado.")
 
+    # 1. Buscar el Token
     token_db = db.query(Token).filter(Token.codigo == req.token, Token.viaje_id == viaje_id).first()
     if not token_db:
         raise HTTPException(status_code=401, detail="Token inválido o no pertenece a este viaje.")
+
+    # ─── NUEVA LÓGICA: VALIDACIÓN DE CAPACIDAD ───
+    cantidad_pedida = len(req.asientos)
+    capacidad_restante = token_db.capacidad_total - token_db.capacidad_usada
+    
+    if cantidad_pedida > capacidad_restante:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"El token solo tiene {capacidad_restante} usos disponibles, pero se solicitaron {cantidad_pedida} asientos."
+        )
+    # ───────────────────────────────────────────────
 
     asientos_pedidos = [p.numero_asiento for p in req.asientos]
 
@@ -318,7 +330,6 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, background_
         )
 
     try:
-        # AQUÍ ESTÁ LA VARIABLE QUE FALTABA
         tickets_generados = []
 
         for pasajero in req.asientos:
@@ -350,6 +361,11 @@ async def confirmar_reserva(viaje_id: int, req: ReservaRequestFinal, background_
             AsientoBloqueado.viaje_id == viaje_id,
             AsientoBloqueado.session_id == req.session_id
         ).delete()
+
+        # ─── NUEVA LÓGICA: ACTUALIZAR EL TOKEN ───
+        # Sumamos los asientos que acabamos de usar a la capacidad consumida del token
+        token_db.capacidad_usada += cantidad_pedida
+        # ───────────────────────────────────────────
 
         db.commit()
 
