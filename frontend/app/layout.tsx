@@ -30,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body className={`${onest.variable} font-[family-name:var(--font-onest)] antialiased min-h-screen bg-gray-50 text-gray-900`}>
         {children}
       </body>
