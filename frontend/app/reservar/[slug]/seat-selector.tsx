@@ -178,7 +178,7 @@ export function SeatSelector({
 
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mb-5 px-4">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-white border-[1.5px] border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.06)]" />
+            <div className="w-5 h-5 rounded-md bg-green-500 border-[1.5px] border-green-600 shadow-[0_1px_3px_rgba(34,197,94,0.3)]" />
             <span className="text-[11px] font-600 uppercase tracking-widest text-slate-500">Disponible</span>
           </div>
           <div className="flex items-center gap-2">
@@ -186,8 +186,8 @@ export function SeatSelector({
             <span className="text-[11px] font-600 uppercase tracking-widest text-slate-500">Tu selección</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-slate-100 border-[1.5px] border-slate-200 flex items-center justify-center opacity-50">
-              <X size={10} className="text-slate-400" strokeWidth={3} />
+            <div className="w-5 h-5 rounded-md bg-red-500 border-[1.5px] border-red-600 flex items-center justify-center shadow-[0_1px_3px_rgba(239,68,68,0.3)]">
+              <X size={10} className="text-white" strokeWidth={3} />
             </div>
             <span className="text-[11px] font-600 uppercase tracking-widest text-slate-500">Ocupado</span>
           </div>
@@ -292,7 +292,7 @@ export function SeatSelector({
 
         <div className="flex justify-center mt-4">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] font-600 text-slate-500 uppercase tracking-wider shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" />
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
             {disponiblesCount} asientos disponibles
           </div>
         </div>
@@ -399,11 +399,11 @@ function SeatButton({
   if (isOccupied) {
     return (
       <div
-        className="relative flex flex-col items-center justify-end pb-1 w-[44px] h-[50px] rounded-t-xl rounded-b-md bg-slate-100 border-[1.5px] border-slate-200 cursor-not-allowed overflow-hidden opacity-45"
+        className="relative flex flex-col items-center justify-end pb-1 w-[44px] h-[50px] rounded-t-xl rounded-b-md bg-red-500 border-[1.5px] border-red-600 cursor-not-allowed overflow-hidden shadow-[0_1px_4px_rgba(239,68,68,0.3)]"
       >
-        <div className="absolute top-0 left-0 right-0 h-3 bg-slate-200 border-b border-slate-300" />
-        <X size={18} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-300" strokeWidth={2.5} />
-        <span className="relative z-10 text-[10px] font-700 text-slate-400"
+        <div className="absolute top-0 left-0 right-0 h-3 bg-red-600 border-b border-red-700" />
+        <X size={18} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white" strokeWidth={2.5} />
+        <span className="relative z-10 text-[10px] font-700 text-white"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}>{numero}</span>
       </div>
     )
@@ -421,8 +421,8 @@ function SeatButton({
         "transition-[border-color,box-shadow] duration-150 ease-out",
         "outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-1",
         !isSelected && [
-          "bg-white border-[1.5px] border-slate-200",
-          "shadow-[0_1px_4px_rgba(0,0,0,0.05)]",
+          "bg-green-500 border-[1.5px] border-green-600",
+          "shadow-[0_1px_4px_rgba(34,197,94,0.3)]",
         ],
         isSelected && [
           "border-2 border-orange-700",
@@ -436,13 +436,13 @@ function SeatButton({
         "absolute top-0 left-0 right-0 h-3",
         isSelected
           ? "bg-orange-700/60 border-b border-orange-800/30"
-          : "bg-slate-100 border-b border-slate-200"
+          : "bg-green-600 border-b border-green-700"
       )} />
       {!isSelected && (
-        <div className="absolute top-3 left-1.5 right-1.5 bottom-5 rounded-sm bg-slate-50 border border-slate-100" />
+        <div className="absolute top-3 left-1.5 right-1.5 bottom-5 rounded-sm bg-green-400 border border-green-500" />
       )}
       <span
-        className={cn("relative z-10 text-[10px] font-700", isSelected ? "text-white drop-shadow-sm" : "text-slate-500")}
+        className={cn("relative z-10 text-[10px] font-700", isSelected ? "text-white drop-shadow-sm" : "text-white drop-shadow-sm")}
         style={{ fontFamily: "'JetBrains Mono', monospace" }}
       >
         {numero}
