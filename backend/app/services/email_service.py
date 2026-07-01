@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 # Cargar variables de entorno
 load_dotenv()
 resend.api_key = os.getenv("RESEND_API_KEY")
+email_from = os.getenv("EMAIL_FROM")
 
 def generar_pdf_memoria(viaje, tickets_db):
     """Genera el PDF en memoria (RAM) sin guardarlo en el disco duro."""
@@ -57,7 +58,7 @@ def enviar_tiquetes_async(email_destino: str, viaje, tickets_db):
 
         # 3. Configuramos el correo
         params = {
-            "from": "Grupo Turístico <onboarding@resend.dev>", # Cambiar al verificar dominio
+            "from": f"Grupo Turístico <{email_from}>", # Cambiar al verificar dominio
             "to": [email_destino], # Para pruebas, DEBE ser el correo con el que creaste tu cuenta en Resend
             "subject": f"Tus Tiquetes Confirmados - {viaje.nombre}",
             "html": f"""
