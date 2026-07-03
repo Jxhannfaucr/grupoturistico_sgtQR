@@ -65,7 +65,7 @@ type TicketData = {
   nombre_pasajero: string
   email_pasajero?: string | null
   qr_hash: string
-  estado: "valido" | "usado" | "cancelado"
+  estado: "valido" | "escaneado" | "cancelado"
   numero_asiento?: string | null
   viaje_nombre?: string | null
   viaje_id?: number | null
@@ -74,7 +74,7 @@ type TicketData = {
   creado_en?: string | null
 }
 
-type EstadoFiltro = "todos" | "valido" | "usado" | "cancelado"
+type EstadoFiltro = "todos" | "valido" | "escaneado" | "cancelado"
 
 // ─── Helpers ───────────────────────────────────────────────
 function getAuthHeaders(): HeadersInit {
@@ -112,13 +112,13 @@ function copyToClipboard(text: string) {
 const ESTADO_OPTIONS: { value: EstadoFiltro; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "valido", label: "Válidos" },
-  { value: "usado", label: "Usados" },
+  { value: "escaneado", label: "Usados" },
   { value: "cancelado", label: "Cancelados" },
 ]
 
 const ESTADO_BADGE: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
   valido: { variant: "default", label: "Válido" },
-  usado: { variant: "secondary", label: "Usado" },
+  escaneado: { variant: "secondary", label: "Usado" },
   cancelado: { variant: "destructive", label: "Cancelado" },
 }
 
@@ -201,7 +201,7 @@ export default function TicketsPage() {
   const stats = useMemo(() => {
     const total = tickets.length
     const validos = tickets.filter((t) => t.estado === "valido").length
-    const usados = tickets.filter((t) => t.estado === "usado").length
+    const usados = tickets.filter((t) => t.estado === "escaneado").length
     const cancelados = tickets.filter((t) => t.estado === "cancelado").length
     return { total, validos, usados, cancelados }
   }, [tickets])

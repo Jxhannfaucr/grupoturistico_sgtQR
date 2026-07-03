@@ -7,7 +7,7 @@ from app.database import Base
 
 class EstadoTicket(str, enum.Enum):
     VALIDO = "valido"
-    USADO = "usado"
+    USADO = "escaneado"
     CANCELADO = "cancelado"
 
 class Ticket(Base):
