@@ -397,7 +397,7 @@ def stats_viaje(viaje_id: int, db: Session = Depends(get_db), current_user: dict
     disponibles = db.query(Asiento).filter(Asiento.viaje_id == viaje_id, Asiento.estado == "disponible").count()
     reservados = db.query(Asiento).filter(Asiento.viaje_id == viaje_id, Asiento.estado == "reservado").count()
     validados = db.query(Ticket).join(Asiento).filter(Asiento.viaje_id == viaje_id, Ticket.estado == "valido").count()
-    escaneados = db.query(Ticket).join(Asiento).filter(Asiento.viaje_id == viaje_id, Ticket.estado == "usado").count()
+    escaneados = db.query(Ticket).join(Asiento).filter(Asiento.viaje_id == viaje_id, Ticket.estado == "escaneado").count()
     
     return {
         "total_asientos": total,
