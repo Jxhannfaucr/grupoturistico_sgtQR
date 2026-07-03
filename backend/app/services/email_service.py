@@ -32,15 +32,21 @@ def generar_pdf_memoria(viaje, tickets_db):
             "qr_base64": img_b64
         })
 
-    env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "../templates")))
+    templates_dir = os.path.join(os.path.dirname(__file__), "../templates")
+    env = Environment(loader=FileSystemLoader(templates_dir))
     template = env.get_template("tiquete.html")
-    
+
     fecha_str = viaje.fecha_salida.strftime("%d/%m/%Y") if viaje.fecha_salida else "--"
     hora_str = viaje.hora_salida.strftime("%I:%M %p") if viaje.hora_salida else "--"
 
+    logo_path = os.path.join(templates_dir, "logo_2k.jpeg")
+    with open(logo_path, "rb") as f:
+        logo_b64 = base64.b64encode(f.read()).decode("utf-8")
+
     html_renderizado = template.render(
         viaje={"nombre": viaje.nombre, "fecha_salida": fecha_str, "hora_salida": hora_str},
-        tickets=tickets_data
+        tickets=tickets_data,
+        logo_b64=logo_b64
     )
 
     pdf_file = io.BytesIO()
