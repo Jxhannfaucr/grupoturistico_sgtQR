@@ -479,7 +479,7 @@ async def descargar_pdf(viaje_id: int, asientos: str, db: Session = Depends(get_
 
     from pathlib import Path
 
-    logo_path = Path("app/templates/logo_2k.jpeg")
+    logo_path = Path("app/templates/logo_optimizado.jpg")
 
     with open(logo_path, "rb") as f:
         logo_b64 = base64.b64encode(f.read()).decode("utf-8")
