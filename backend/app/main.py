@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.auth import router as auth_router
@@ -9,6 +9,10 @@ from app.routes.ticket import router as ticket_router
 from app.routes.usuarios import router as usuarios_router
 from app.routes.roles import router as roles_router
 from app.routes import dashboard
+
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from app.database import get_db
 
 from app.models import rol, usuarios
 
@@ -57,3 +61,12 @@ def health_db():
         return {"database": "ok", "host": host}
     except OperationalError as e:
         return {"database": "error", "host": host, "detail": str(e).split("\n")[0]}
+
+@app.get("/health", tags=["mantenimiento"])
+def health_check(db: Session = Depends(get_db)):
+    try:
+        # Consulta ultraligera para despertar y mantener activo el Session Pooler
+        db.execute(text("SELECT 1"))
+        return {"status": "online", "database": "activa"}
+    except Exception as e:
+        return {"status": "error", "detalle": str(e)}
