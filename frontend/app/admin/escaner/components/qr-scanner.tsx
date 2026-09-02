@@ -8,6 +8,8 @@ import {
   Camera,
   CameraOff,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   KeyRound,
   Loader2,
@@ -50,6 +52,7 @@ type EscaneoResultado = {
 type HistorialItem = EscaneoResultado & { hora: string; key: string }
 
 const SCANNER_ELEMENT_ID = "qr-reader-viewport"
+const ITEMS_POR_PAGINA = 6
 
 const MOTIVO_STYLES: Record<
   Motivo,
@@ -102,10 +105,23 @@ export function QrScanner() {
   const [cameraError, setCameraError] = useState("")
   const [resultado, setResultado] = useState<EscaneoResultado | null>(null)
   const [historial, setHistorial] = useState<HistorialItem[]>([])
+  const [paginaActual, setPaginaActual] = useState(1)
   const [manualHash, setManualHash] = useState("")
   const [procesando, setProcesando] = useState(false)
 
   useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason
+      const esAbortPlayBenigno =
+        reason instanceof DOMException &&
+        reason.name === "AbortError" &&
+        reason.message.includes("play()")
+      if (esAbortPlayBenigno) {
+        event.preventDefault()
+      }
+    }
+    window.addEventListener("unhandledrejection", handleUnhandledRejection)
+
     const qr = new Html5Qrcode(SCANNER_ELEMENT_ID)
     html5QrCodeRef.current = qr
     let cancelado = false
@@ -148,6 +164,7 @@ export function QrScanner() {
       })
 
     return () => {
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection)
       cancelado = true
       const state = qr.getState()
       if (
@@ -170,7 +187,8 @@ export function QrScanner() {
       setHistorial((prev) => [
         { ...data, hora: new Date().toISOString(), key: `${qrHash}-${Date.now()}` },
         ...prev,
-      ].slice(0, 20))
+      ])
+      setPaginaActual(1)
     } catch (err) {
       const motivo: Motivo = "not_found"
       const message = err instanceof ApiError ? err.message : "No se pudo validar el ticket."
@@ -179,7 +197,8 @@ export function QrScanner() {
       setHistorial((prev) => [
         { ...fallback, hora: new Date().toISOString(), key: `${qrHash}-${Date.now()}` },
         ...prev,
-      ].slice(0, 20))
+      ])
+      setPaginaActual(1)
     } finally {
       setProcesando(false)
     }
@@ -188,8 +207,8 @@ export function QrScanner() {
   function handleContinuar() {
     setResultado(null)
     isProcessingRef.current = false
-    if (cameraStatus === "running") {
-      html5QrCodeRef.current?.resume()
+    if (html5QrCodeRef.current?.getState() === Html5QrcodeScannerState.PAUSED) {
+      html5QrCodeRef.current.resume()
     }
   }
 
@@ -198,8 +217,8 @@ export function QrScanner() {
     const value = manualHash.trim()
     if (!value || procesando) return
     isProcessingRef.current = true
-    if (cameraStatus === "running") {
-      html5QrCodeRef.current?.pause(true)
+    if (html5QrCodeRef.current?.getState() === Html5QrcodeScannerState.SCANNING) {
+      html5QrCodeRef.current.pause(true)
     }
     setManualHash("")
     void procesarQr(value)
@@ -211,6 +230,17 @@ export function QrScanner() {
     const rechazados = total - validos
     return { total, validos, rechazados }
   }, [historial])
+
+  const totalPaginas = Math.max(1, Math.ceil(historial.length / ITEMS_POR_PAGINA))
+
+  const historialPagina = useMemo(() => {
+    const inicio = (paginaActual - 1) * ITEMS_POR_PAGINA
+    return historial.slice(inicio, inicio + ITEMS_POR_PAGINA)
+  }, [historial, paginaActual])
+
+  useEffect(() => {
+    setPaginaActual((p) => Math.min(Math.max(p, 1), totalPaginas))
+  }, [totalPaginas])
 
   const activeStyle = resultado ? MOTIVO_STYLES[resultado.motivo] : null
 
@@ -312,29 +342,59 @@ export function QrScanner() {
               </p>
             </div>
           ) : (
-            <ul className="max-h-[520px] divide-y divide-border/60 overflow-y-auto">
-              {historial.map((item) => {
-                const style = MOTIVO_STYLES[item.motivo]
-                const Icon = style.icon
-                return (
-                  <li key={item.key} className="flex items-center gap-3 px-4 py-3">
-                    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", style.bg)}>
-                      <Icon className={cn("h-4 w-4", style.text)} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {item.ticket?.nombre_pasajero ?? "Ticket no encontrado"}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {item.ticket?.numero_asiento ? `Asiento #${item.ticket.numero_asiento} · ` : ""}
-                        {formatHora(item.hora)}
-                      </p>
-                    </div>
-                    <Badge variant={style.badge}>{style.label}</Badge>
-                  </li>
-                )
-              })}
-            </ul>
+            <>
+              <ul className="divide-y divide-border/60">
+                {historialPagina.map((item) => {
+                  const style = MOTIVO_STYLES[item.motivo]
+                  const Icon = style.icon
+                  return (
+                    <li key={item.key} className="flex items-center gap-3 px-4 py-3">
+                      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", style.bg)}>
+                        <Icon className={cn("h-4 w-4", style.text)} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {item.ticket?.nombre_pasajero ?? "Ticket no encontrado"}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {item.ticket?.numero_asiento ? `Asiento #${item.ticket.numero_asiento} · ` : ""}
+                          {formatHora(item.hora)}
+                        </p>
+                      </div>
+                      <Badge variant={style.badge}>{style.label}</Badge>
+                    </li>
+                  )
+                })}
+              </ul>
+
+              {totalPaginas > 1 && (
+                <div className="flex items-center justify-between gap-2 border-t border-border/70 px-4 py-2.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+                    disabled={paginaActual === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Anterior
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Página {paginaActual} de {totalPaginas}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+                    disabled={paginaActual === totalPaginas}
+                  >
+                    Siguiente
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
