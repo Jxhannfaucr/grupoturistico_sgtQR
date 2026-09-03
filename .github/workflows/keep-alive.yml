@@ -1,0 +1,19 @@
+name: Despertar Render y Supabase
+
+on:
+  schedule:
+    - cron: '0 3 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hacer ping con reintentos
+        run: |
+          echo "Iniciando secuencia de despertar..."
+          # -f: Obliga a curl a fallar si recibe un 503 o error similar
+          # --retry 6: Intenta un máximo de 6 veces
+          # --retry-delay 15: Espera 15 segundos entre cada intento fallido
+          curl -f --retry 6 --retry-delay 15 --retry-all-errors -s https://grupoturistico-sgtqr.onrender.com/health
+          echo "Petición procesada exitosamente. Supabase activo."
