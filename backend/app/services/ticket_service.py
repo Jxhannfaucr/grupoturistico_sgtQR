@@ -204,18 +204,26 @@ def listar_tickets(
     viaje_id: int | None = None,
     token_id: int | None = None,
     estado: str | None = None,
+    incluir_pasados: bool = False,
 ) -> list[dict]:
-    """Lista tickets con filtros opcionales."""
-    query = db.query(Ticket)
+    """Lista tickets con filtros opcionales, ocultando por defecto los de viajes finalizados."""
+    # Unimos Asiento y Viaje desde el inicio para acceder a la fecha
+    query = db.query(Ticket).join(Asiento).join(Viaje)
 
     if token_id:
         query = query.filter(Ticket.token_id == token_id)
 
     if viaje_id:
-        query = query.join(Asiento).filter(Asiento.viaje_id == viaje_id)
+        query = query.filter(Asiento.viaje_id == viaje_id)
 
     if estado:
         query = query.filter(Ticket.estado == estado)
+        
+    if not incluir_pasados:
+        query = query.filter(
+            Viaje.estado != "cancelado",
+            Viaje.fecha_salida >= datetime.now(timezone.utc)
+        )
 
     tickets = query.order_by(Ticket.creado_en.desc()).all()
     return [formatear_ticket(t) for t in tickets]

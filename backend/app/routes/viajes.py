@@ -205,6 +205,163 @@ def eliminar_viaje(
     db.commit()
     return {"message": "Viaje eliminado físicamente exitosamente.", "accion": "hard_delete"}
 
+@router.get("/{viaje_id}/asientos-admin")
+def obtener_asientos_admin(
+    viaje_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: dict = Depends(get_current_user)
+):
+    """Devuelve el mapa de asientos con la información detallada del pasajero para uso logístico."""
+    viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado")
+    
+    asientos_db = db.query(Asiento).filter(Asiento.viaje_id == viaje_id).all()
+    
+    # Obtenemos solo los tickets válidos o escaneados (ignoramos cancelados)
+    tickets_db = db.query(Ticket).join(Asiento).filter(
+        Asiento.viaje_id == viaje_id,
+        Ticket.estado != "cancelado"
+    ).all()
+    
+    tickets_map = {t.asiento_id: t for t in tickets_db}
+    
+    resultado = []
+    for a in asientos_db:
+        t = tickets_map.get(a.id)
+        resultado.append({
+            "numero": a.numero,
+            "estado_asiento": a.estado.value if hasattr(a.estado, 'value') else str(a.estado),
+            "pasajero": {
+                "nombre": t.nombre_pasajero,
+                "email": t.email_pasajero,
+                "telefono": t.telefono_pasajero,
+                "estado_ticket": t.estado.value if hasattr(t.estado, 'value') else str(t.estado),
+                "token": t.token.codigo if t.token else None
+            } if t else None
+        })
+        
+    tipo_plantilla = viaje.bus.tipo_plantilla if viaje.bus and hasattr(viaje.bus, 'tipo_plantilla') else "2x2_estandar"
+    total_asientos = viaje.bus.capacidad_total if viaje.bus else len(asientos_db)
+    
+    return {
+        "viaje_id": viaje.id,
+        "precio": float(viaje.precio) if viaje.precio else 0.0,
+        "total_asientos": total_asientos,
+        "tipo_plantilla": tipo_plantilla,
+        "mapa": resultado
+    }
+
+# ─── ENDPOINTS DE EXPORTACIÓN ───────────────────────────────
+@router.get("/{viaje_id}/exportar-pasajeros")
+def exportar_pasajeros_pdf(
+    viaje_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Genera y descarga un archivo PDF con el manifiesto de pasajeros del viaje."""
+    viaje = db.query(Viaje).filter(Viaje.id == viaje_id).first()
+    if not viaje:
+        raise HTTPException(status_code=404, detail="Viaje no encontrado")
+    
+    tickets = db.query(Ticket).join(Asiento).filter(Asiento.viaje_id == viaje_id).all()
+    if not tickets:
+        raise HTTPException(status_code=400, detail="No hay pasajeros registrados en este viaje aún.")
+
+    # Fechas formateadas
+    fecha_str = viaje.fecha_salida.strftime("%d/%m/%Y") if viaje.fecha_salida else "--"
+    hora_str = viaje.hora_salida.strftime("%I:%M %p") if viaje.hora_salida else "--"
+
+    # Construcción de la plantilla HTML en texto plano
+    html_content = f"""
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            @page {{ size: letter; margin: 1.5cm; }}
+            body {{ font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #333; }}
+            h1 {{ text-align: center; color: #171717; margin-bottom: 5px; }}
+            .subtitle {{ text-align: center; font-size: 14px; color: #666; margin-bottom: 20px; }}
+            
+            /* table-layout: fixed obliga a respetar los anchos definidos en los <th> */
+            table {{ width: 100%; border-collapse: collapse; margin-top: 15px; table-layout: fixed; }}
+            
+            /* word-wrap: break-word fuerza el salto de línea si el texto supera la celda */
+            th, td {{ border: 1px solid #e5e7eb; padding: 8px 6px; text-align: left; word-wrap: break-word; }}
+            
+            th {{ background-color: #f3f4f6; font-weight: bold; color: #374151; }}
+            .row-alt {{ background-color: #f9fafb; }}
+        </style>
+    </head>
+    <body>
+        <h1>Manifiesto de Pasajeros</h1>
+        <div class="subtitle">
+            <strong>Viaje:</strong> {viaje.nombre} | 
+            <strong>Fecha:</strong> {fecha_str} a las {hora_str}
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th width="8%">Asiento</th>
+                    <th width="22%">Pasajero</th>
+                    <th width="20%">Email</th>
+                    <th width="15%">Teléfono</th>
+                    <th width="20%">Punto de Abordaje</th>
+                    <th width="15%">Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    # Inyectar las filas de los pasajeros
+    for idx, t in enumerate(tickets):
+        estado_val = t.estado.value if hasattr(t.estado, 'value') else str(t.estado)
+        row_class = "row-alt" if idx % 2 != 0 else ""
+        
+        # Intervención: Forzar salto de línea en correos largos para xhtml2pdf
+        email_raw = t.email_pasajero or '-'
+        if email_raw != '-':
+            # Divide el string cada 20 caracteres y lo une con un <br/>
+            email_format = "<br/>".join([email_raw[i:i+20] for i in range(0, len(email_raw), 20)])
+        else:
+            email_format = '-'
+        
+        html_content += f"""
+                <tr class="{row_class}">
+                    <td style="text-align: center;"><strong>{t.asiento.numero}</strong></td>
+                    <td>{t.nombre_pasajero}</td>
+                    <td>{email_format}</td>
+                    <td>{t.telefono_pasajero or '-'}</td>
+                    <td>{t.punto_abordaje_pasajero or '-'}</td>
+                    <td>{estado_val.upper()}</td>
+                </tr>
+        """
+        
+    html_content += """
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+
+    # Compilar a PDF en memoria
+    pdf_file = io.BytesIO()
+    pisa_status = pisa.CreatePDF(io.StringIO(html_content), dest=pdf_file)
+    
+    if pisa_status.err:
+        raise HTTPException(status_code=500, detail="Error al compilar el PDF del manifiesto")
+
+    pdf_file.seek(0)
+    
+    # Preparar el archivo de salida
+    nombre_limpio = "".join(c for c in viaje.nombre if c.isalnum() or c in (' ', '_')).replace(' ', '_')
+    filename = f"Manifiesto_{nombre_limpio}_{viaje_id}.pdf"
+    
+    return StreamingResponse(
+        pdf_file, 
+        media_type="application/pdf", 
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 # ─── ENDPOINTS PÚBLICOS (SISTEMA DE ASIENTOS) ────────────────
 @router.get("/publico/{viaje_id}")

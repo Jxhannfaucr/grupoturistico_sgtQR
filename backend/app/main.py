@@ -6,6 +6,7 @@ from app.routes.viajes import router as viajes_router
 from app.routes.buses import router as buses_router
 from app.routes.token import router as token_router
 from app.routes.ticket import router as ticket_router
+from app.routes.abonos import router as abonos_router
 from app.routes.usuarios import router as usuarios_router
 from app.routes.roles import router as roles_router
 from app.routes import dashboard
@@ -35,6 +36,7 @@ app.include_router(viajes_router, prefix="/api")
 app.include_router(buses_router, prefix="/api")
 app.include_router(token_router, prefix="/api")
 app.include_router(ticket_router, prefix="/api")
+app.include_router(abonos_router, prefix="/api")
 app.include_router(usuarios_router, prefix="/api")
 app.include_router(roles_router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")

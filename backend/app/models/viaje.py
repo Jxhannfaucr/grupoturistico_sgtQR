@@ -19,4 +19,5 @@ class Viaje(Base):
     bus = relationship("Bus")
     asientos = relationship("Asiento", back_populates="viaje")
     tokens = relationship("Token", back_populates="viaje")
+    abonos = relationship("AbonoPlan", back_populates="viaje")
     estado = Column(String, default="activo")

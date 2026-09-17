@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 type StatCardProps = {
   icon: React.ReactNode
   label: string
-  value: number
+  value: number | string
   hint: string
   accent: "primary" | "secondary" | "accent" | "success"
 }

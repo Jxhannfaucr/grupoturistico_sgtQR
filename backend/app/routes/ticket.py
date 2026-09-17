@@ -58,11 +58,18 @@ def get_tickets(
     viaje_id: Optional[int] = Query(None, description="Filtrar por viaje"),
     token_id: Optional[int] = Query(None, description="Filtrar por lote"),
     estado: Optional[str] = Query(None, description="Filtrar por estado: valido, usado, cancelado"),
+    incluir_pasados: bool = Query(False, description="Incluir tickets de viajes pasados/cancelados"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Lista todos los tickets con filtros opcionales."""
-    return listar_tickets(db, viaje_id=viaje_id, token_id=token_id, estado=estado)
+    """Lista todos los tickets ocultando por defecto los de viajes ya finalizados."""
+    return listar_tickets(
+        db, 
+        viaje_id=viaje_id, 
+        token_id=token_id, 
+        estado=estado, 
+        incluir_pasados=incluir_pasados
+    )
 
 
 @router.get("/tickets/{ticket_id}")

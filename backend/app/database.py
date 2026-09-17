@@ -27,6 +27,7 @@ from app.models.viaje import Viaje
 from app.models.token import Token
 from app.models.asiento import Asiento
 from app.models.ticket import Ticket
+from app.models.abono import AbonoPlan, AbonoMovimiento
 
 def get_db():
     db = SessionLocal()
