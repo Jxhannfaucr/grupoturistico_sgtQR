@@ -22,11 +22,12 @@ router = APIRouter(prefix="/tokens", tags=["tokens"])
 @router.get("/")
 def get_tokens(
     viaje_id: Optional[int] = Query(None, description="Filtrar por ID de viaje"),
+    incluir_pasados: bool = Query(False, description="Mostrar tokens de viajes pasados/cancelados"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Lista todos los lotes, opcionalmente filtrados por viaje."""
-    tokens = listar_tokens(db, viaje_id=viaje_id)
+    """Lista todos los lotes, filtrando por defecto los viajes ya finalizados."""
+    tokens = listar_tokens(db, viaje_id=viaje_id, incluir_pasados=incluir_pasados)
     return [formatear_token(t) for t in tokens]
 
 

@@ -8,17 +8,28 @@ from app.models.viaje import Viaje
 from app.models.asiento import Asiento
 from app.schemas.token import TokenCreate, TokenUpdate
 
+from datetime import datetime, timezone
+
 
 def generar_codigo() -> str:
     """Genera un código único para el lote (8 caracteres hex en mayúscula)."""
     return uuid.uuid4().hex[:8].upper()
 
 
-def listar_tokens(db: Session, viaje_id: int | None = None) -> list[Token]:
-    """Devuelve todos los tokens, opcionalmente filtrados por viaje."""
-    query = db.query(Token)
+def listar_tokens(db: Session, viaje_id: int | None = None, incluir_pasados: bool = False) -> list[Token]:
+    """Devuelve todos los tokens, ocultando por defecto los de viajes finalizados o cancelados."""
+    # Unimos con Viaje para poder evaluar la fecha de salida
+    query = db.query(Token).join(Viaje)
+    
     if viaje_id:
         query = query.filter(Token.viaje_id == viaje_id)
+        
+    if not incluir_pasados:
+        query = query.filter(
+            Viaje.estado != "cancelado",
+            Viaje.fecha_salida >= datetime.now(timezone.utc)
+        )
+        
     return query.order_by(Token.creado_en.desc()).all()
 
 

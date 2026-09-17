@@ -69,6 +69,8 @@ import {
   isViajeProximo,
 } from "@/lib/format"
 
+import { FileText } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 
 import type { Viaje } from "@/types/viaje"
@@ -101,6 +103,59 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
   const [selectedViaje, setSelectedViaje] = useState<Viaje | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedToken, setGeneratedToken] = useState<string | null>(null)
+
+  // Manejador para descargar el manifiesto en PDF
+  const handleExportManifest = async (viajeId: number, viajeNombre: string) => {
+    try {
+      // 1. Mostrar modal de carga bloqueante inmediatamente al hacer clic
+      Swal.fire({
+        title: "Generando PDF...",
+        text: "Procesando el manifiesto de pasajeros.",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const token = localStorage.getItem("access_token");
+      
+      const response = await fetch(`${API_URL}/api/viajes/${viajeId}/exportar-pasajeros`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || "Error al descargar el manifiesto");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      
+      const nombreLimpio = viajeNombre.replace(/[^a-zA-Z0-9]/g, "_");
+      a.download = `Manifiesto_${nombreLimpio}_${viajeId}.pdf`;
+      
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      // 2. Cerrar el modal silenciosamente cuando el archivo ya se descargó
+      Swal.close();
+
+    } catch (error: any) {
+      Swal.fire({
+        title: "No se pudo descargar",
+        text: error.message,
+        icon: "warning",
+        confirmButtonColor: "#171717"
+      });
+    }
+  }
 
   // Formulario para el token de compra
   const form = useForm<PurchaseTokenFormValues>({
@@ -400,7 +455,7 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
                           </Link>
                         </DropdownMenuItem>
 
-                        {!isCancelado && (
+                        {!isCancelado && proximo &&(
                           <>
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/viajes/${viaje.id}/editar`} className="cursor-pointer">
@@ -419,6 +474,13 @@ export function ViajesTable({ viajes, onRefresh }: ViajesTableProps) {
                             </DropdownMenuItem>
                           </>
                         )}
+                        {!isCancelado && viaje.asientos_vendidos_count > 0 && (
+                          <DropdownMenuItem onClick={() => handleExportManifest(viaje.id, viaje.nombre)} className="cursor-pointer font-medium text-emerald-700 focus:bg-emerald-50 focus:text-emerald-800">
+                            <FileText className="mr-2 h-4 w-4" />
+                            <span>Descargar Manifiesto (PDF)</span>
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
 
                         <DropdownMenuSeparator />
 

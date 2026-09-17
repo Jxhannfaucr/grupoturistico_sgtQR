@@ -21,6 +21,7 @@ import {
   PlusCircle,
   List,
   ScanLine,
+  Wallet,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -55,6 +56,11 @@ const navigation = [
     label: "Tokens",
     href: "/admin/tokens",
     icon: Package,
+  },
+  {
+    label: "Abonos",
+    href: "/admin/abonos",
+    icon: Wallet,
   },
   {
     label: "Tickets",
