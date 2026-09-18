@@ -10,7 +10,7 @@ import { PassengerForm } from "./passenger-form"
 import { ConfirmationScreen } from "./confirmation-screen"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001"
-const TIMER_MINUTES = 20
+const TIMER_MINUTES = 5
 
 type ViajePublicoInfo = {
   id: number
@@ -296,7 +296,7 @@ export default function ReservarPage() {
     return <ConfirmationScreen viajeName={viaje.nombre} fecha={viaje.fecha_salida} hora={viaje.hora_salida} lugar={viaje.lugar_abordaje} asientos={confirmedSeats} />
   }
 
-  const timerUrgent = timerSeconds < 120
+  const timerUrgent = timerSeconds < 60
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(168deg, #f0f4ff 0%, #fafbff 40%, #f5f3ff 100%)", fontFamily: "'Syne', -apple-system, sans-serif", paddingBottom: 20 }}>

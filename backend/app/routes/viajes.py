@@ -424,7 +424,7 @@ async def bloquear_asiento(viaje_id: int, req: BloqueoRequest, db: Session = Dep
 
     if bloqueo_activo:
         if bloqueo_activo.session_id == req.session_id:
-            bloqueo_activo.expira_en = datetime.now(timezone.utc) + timedelta(minutes=20)
+            bloqueo_activo.expira_en = datetime.now(timezone.utc) + timedelta(minutes=5)
             db.commit()
             return {"status": "success"}
         raise HTTPException(status_code=409, detail="El asiento acaba de ser tomado por otra persona.")
@@ -433,7 +433,7 @@ async def bloquear_asiento(viaje_id: int, req: BloqueoRequest, db: Session = Dep
         viaje_id=viaje_id,
         numero_asiento=req.numero_asiento,
         session_id=req.session_id,
-        expira_en=datetime.now(timezone.utc) + timedelta(minutes=20)
+        expira_en=datetime.now(timezone.utc) + timedelta(minutes=5)
     )
     db.add(nuevo_bloqueo)
     db.commit()
