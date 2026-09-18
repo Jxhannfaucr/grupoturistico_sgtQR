@@ -89,7 +89,7 @@ export function SeatSelector({
       const result = await Swal.fire({
         title: "¿Apartar este asiento?",
         html: `<p style="color:#64748b;font-size:15px;line-height:1.6;margin-top:4px">
-          Tienes <strong style="color:#ea580c">20 minutos</strong> para completar tu reserva.<br/>
+          Tienes <strong style="color:#ea580c">5 minutos</strong> para completar tu reserva.<br/>
           Si no finalizas a tiempo, el asiento <strong>se liberará automáticamente</strong>.
         </p>`,
         icon: "question",
