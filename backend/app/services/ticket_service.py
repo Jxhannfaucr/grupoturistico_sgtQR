@@ -1,6 +1,6 @@
 import uuid
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from sqlalchemy.orm import Session
@@ -226,6 +226,42 @@ def listar_tickets(
         )
 
     tickets = query.order_by(Ticket.creado_en.desc()).all()
+    return [formatear_ticket(t) for t in tickets]
+
+
+# Costa Rica (UTC-6).
+ZONA_LOCAL = timezone(timedelta(hours=-6))
+
+
+def listar_tickets_escaneados(
+    db: Session,
+    viaje_id: int | None = None,
+    incluir_pasados: bool = False,
+) -> list[dict]:
+    """
+    Historial de tickets ya escaneados (estado 'escaneado'), más recientes primero.
+    Por defecto solo incluye viajes de hoy o futuros: se compara contra el inicio del día
+    local y no contra la hora actual, para que un viaje que ya salió hoy siga visible.
+    """
+    query = (
+        db.query(Ticket)
+        .join(Asiento)
+        .join(Viaje)
+        .filter(Ticket.estado == EstadoTicket.USADO)
+    )
+
+    if viaje_id:
+        query = query.filter(Asiento.viaje_id == viaje_id)
+
+    if not incluir_pasados:
+        hoy = datetime.now(ZONA_LOCAL)
+        inicio_del_dia = datetime(hoy.year, hoy.month, hoy.day)
+        query = query.filter(
+            Viaje.estado != "cancelado",
+            Viaje.fecha_salida >= inicio_del_dia,
+        )
+
+    tickets = query.order_by(Ticket.escaneado_en.desc().nulls_last()).all()
     return [formatear_ticket(t) for t in tickets]
 
 

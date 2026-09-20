@@ -8,6 +8,7 @@ from app.services.ticket_service import (
     obtener_info_lote,
     reservar_asientos,
     listar_tickets,
+    listar_tickets_escaneados,
     obtener_ticket,
     escanear_ticket,
     cancelar_ticket,
@@ -70,6 +71,17 @@ def get_tickets(
         estado=estado, 
         incluir_pasados=incluir_pasados
     )
+
+
+@router.get("/tickets/escaneados")
+def get_tickets_escaneados(
+    viaje_id: Optional[int] = Query(None, description="Filtrar por viaje"),
+    incluir_pasados: bool = Query(False, description="Incluir escaneos de viajes anteriores a hoy o cancelados"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Historial de tickets escaneados de viajes de hoy o futuros (fuente de la vista del escáner)."""
+    return listar_tickets_escaneados(db, viaje_id=viaje_id, incluir_pasados=incluir_pasados)
 
 
 @router.get("/tickets/{ticket_id}")
