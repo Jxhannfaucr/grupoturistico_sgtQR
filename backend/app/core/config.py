@@ -1,5 +1,9 @@
 import os
+from datetime import timedelta, timezone
 from urllib.parse import quote_plus
+
+# Costa Rica (UTC-6, sin horario de verano). Viaje.fecha_salida se guarda como hora local sin zona.
+ZONA_LOCAL = timezone(timedelta(hours=-6))
 
 
 def _build_database_url() -> str:

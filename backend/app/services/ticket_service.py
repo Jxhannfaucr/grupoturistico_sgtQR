@@ -1,11 +1,12 @@
 import uuid
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import List
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
+from app.core.config import ZONA_LOCAL
 from app.models.ticket import Ticket, EstadoTicket
 from app.models.token import Token
 from app.models.asiento import Asiento, EstadoAsiento
@@ -227,10 +228,6 @@ def listar_tickets(
 
     tickets = query.order_by(Ticket.creado_en.desc()).all()
     return [formatear_ticket(t) for t in tickets]
-
-
-# Costa Rica (UTC-6).
-ZONA_LOCAL = timezone(timedelta(hours=-6))
 
 
 def listar_tickets_escaneados(
