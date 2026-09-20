@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode"
 import {
   AlertTriangle,
@@ -92,9 +92,14 @@ const MOTIVO_STYLES: Record<
   },
 }
 
+function parseFecha(iso: string) {
+  const tieneZona = /(Z|[+-]\d{2}:?\d{2})$/i.test(iso)
+  return new Date(tieneZona ? iso : `${iso}Z`)
+}
+
 function formatHora(iso?: string | null) {
   if (!iso) return "—"
-  return new Date(iso).toLocaleTimeString("es-CR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  return parseFecha(iso).toLocaleTimeString("es-CR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 }
 
 export function QrScanner() {
@@ -104,10 +109,41 @@ export function QrScanner() {
   const [cameraStatus, setCameraStatus] = useState<"starting" | "running" | "error" | "stopped">("starting")
   const [cameraError, setCameraError] = useState("")
   const [resultado, setResultado] = useState<EscaneoResultado | null>(null)
-  const [historial, setHistorial] = useState<HistorialItem[]>([])
+  const [escaneados, setEscaneados] = useState<TicketInfo[]>([])
+  const [historialStatus, setHistorialStatus] = useState<"loading" | "ready" | "error">("loading")
+  const [rechazadosSesion, setRechazadosSesion] = useState<HistorialItem[]>([])
   const [paginaActual, setPaginaActual] = useState(1)
   const [manualHash, setManualHash] = useState("")
   const [procesando, setProcesando] = useState(false)
+
+  const cargarHistorial = useCallback(async () => {
+    try {
+      const data = await apiClient<TicketInfo[]>("/api/tickets/escaneados")
+      setEscaneados(data)
+      setHistorialStatus("ready")
+    } catch {
+      setHistorialStatus("error")
+    }
+  }, [])
+
+  useEffect(() => {
+    void cargarHistorial()
+  }, [cargarHistorial])
+
+  // Los escaneos válidos vienen de la BD; los rechazos no se persisten, así que solo viven en la sesión.
+  const historial = useMemo<HistorialItem[]>(() => {
+    const persistidos: HistorialItem[] = escaneados.map((ticket) => ({
+      valido: true,
+      motivo: "success",
+      message: "",
+      ticket,
+      hora: ticket.escaneado_en ?? ticket.creado_en ?? "",
+      key: `ticket-${ticket.id}`,
+    }))
+    return [...rechazadosSesion, ...persistidos].sort(
+      (a, b) => parseFecha(b.hora).getTime() - parseFecha(a.hora).getTime()
+    )
+  }, [escaneados, rechazadosSesion])
 
   useEffect(() => {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -184,17 +220,21 @@ export function QrScanner() {
         { method: "POST", body: { qr_hash: qrHash } }
       )
       setResultado(data)
-      setHistorial((prev) => [
-        { ...data, hora: new Date().toISOString(), key: `${qrHash}-${Date.now()}` },
-        ...prev,
-      ])
+      if (data.motivo === "success") {
+        void cargarHistorial()
+      } else {
+        setRechazadosSesion((prev) => [
+          { ...data, hora: new Date().toISOString(), key: `${qrHash}-${Date.now()}` },
+          ...prev,
+        ])
+      }
       setPaginaActual(1)
     } catch (err) {
       const motivo: Motivo = "not_found"
       const message = err instanceof ApiError ? err.message : "No se pudo validar el ticket."
       const fallback: EscaneoResultado = { valido: false, motivo, message, ticket: null }
       setResultado(fallback)
-      setHistorial((prev) => [
+      setRechazadosSesion((prev) => [
         { ...fallback, hora: new Date().toISOString(), key: `${qrHash}-${Date.now()}` },
         ...prev,
       ])
@@ -331,10 +371,22 @@ export function QrScanner() {
         <div className="rounded-2xl border border-border/70 bg-card shadow-sm">
           <div className="flex items-center gap-2 border-b border-border/70 px-4 py-3 text-sm font-medium text-foreground">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            Historial de esta sesión
+            Historial de escaneos
           </div>
 
-          {historial.length === 0 ? (
+          {historial.length === 0 && historialStatus === "loading" ? (
+            <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando historial…
+            </div>
+          ) : historial.length === 0 && historialStatus === "error" ? (
+            <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+              <p className="text-sm text-destructive">No se pudo cargar el historial.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void cargarHistorial()}>
+                Reintentar
+              </Button>
+            </div>
+          ) : historial.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
               <ScanLine className="h-6 w-6 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">

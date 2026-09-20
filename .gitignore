@@ -15,7 +15,7 @@ backend/ENV/
 backend/env/
 backend/.pytest_cache/
 
-# 3. Python compiled files (todos los niveles)
+# 3. Archivos compilados de Python (todos los niveles)
 **/__pycache__/
 **/*.pyc
 **/*.pyo
@@ -26,7 +26,7 @@ backend/.pytest_cache/
 Thumbs.db
 desktop.ini
 
-# 5. Archivos de configuración del Editor (Opcional)
+# 5. Archivos de configuración del Editor
 .vscode/
 .idea/
 
@@ -37,4 +37,7 @@ desktop.ini
 .env.test.local
 .env.production.local
 backend/.env
-frontend/.envfrontend/tsconfig.tsbuildinfo
+frontend/.env
+
+# 7. Caché de compilación
+frontend/tsconfig.tsbuildinfo
