@@ -26,11 +26,17 @@ def _user_id(current_user) -> int | None:
 def get_abonos(
     viaje_id: Optional[int] = Query(None, description="Filtrar por ID de viaje"),
     incluir_pasados: bool = Query(False, description="Mostrar abonos de viajes pasados/cancelados"),
+    incluir_cancelados: bool = Query(False, description="Mostrar planes cancelados (soft-delete, solo auditoría)"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Lista todos los planes de abono, opcionalmente filtrados por viaje."""
-    planes = listar_planes(db, viaje_id=viaje_id, incluir_pasados=incluir_pasados)
+    planes = listar_planes(
+        db,
+        viaje_id=viaje_id,
+        incluir_pasados=incluir_pasados,
+        incluir_cancelados=incluir_cancelados,
+    )
     return [formatear_plan(p) for p in planes]
 
 
@@ -72,11 +78,17 @@ def post_pago(
 def get_abonos_de_viaje(
     viaje_id: int,
     incluir_pasados: bool = Query(False, description="Mostrar abonos de viajes pasados/cancelados"),
+    incluir_cancelados: bool = Query(False, description="Mostrar planes cancelados (soft-delete, solo auditoría)"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Lista los planes de abono de un viaje con el total abonado y el porcentaje completado."""
-    planes = listar_planes_por_viaje(db, viaje_id, incluir_pasados=incluir_pasados)
+    planes = listar_planes_por_viaje(
+        db,
+        viaje_id,
+        incluir_pasados=incluir_pasados,
+        incluir_cancelados=incluir_cancelados,
+    )
     return [formatear_plan(p) for p in planes]
 
 
