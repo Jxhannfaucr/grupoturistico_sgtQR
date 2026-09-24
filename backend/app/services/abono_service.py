@@ -96,10 +96,13 @@ def registrar_pago(
 
 
 def listar_planes_por_viaje(
-    db: Session, viaje_id: int, incluir_pasados: bool = False
+    db: Session,
+    viaje_id: int,
+    incluir_pasados: bool = False,
+    incluir_cancelados: bool = False,
 ) -> list[AbonoPlan]:
     """Lista los planes de abono de un viaje, ocultando por defecto los de
-    viajes ya finalizados o cancelados."""
+    viajes ya finalizados/cancelados y los planes cancelados."""
     existe_viaje = db.query(Viaje.id).filter(Viaje.id == viaje_id).first()
     if not existe_viaje:
         raise HTTPException(
@@ -107,14 +110,27 @@ def listar_planes_por_viaje(
             detail="Viaje no encontrado.",
         )
 
-    return listar_planes(db, viaje_id=viaje_id, incluir_pasados=incluir_pasados)
+    return listar_planes(
+        db,
+        viaje_id=viaje_id,
+        incluir_pasados=incluir_pasados,
+        incluir_cancelados=incluir_cancelados,
+    )
 
 
 def listar_planes(
-    db: Session, viaje_id: int | None = None, incluir_pasados: bool = False
+    db: Session,
+    viaje_id: int | None = None,
+    incluir_pasados: bool = False,
+    incluir_cancelados: bool = False,
 ) -> list[AbonoPlan]:
-    """Lista los planes de abono, opcionalmente filtrados por viaje. Oculta
-    por defecto los de viajes ya finalizados o cancelados."""
+    """
+    Lista los planes de abono, opcionalmente filtrados por viaje.
+    Por defecto oculta los de viajes ya finalizados/cancelados (incluir_pasados)
+    y, de forma independiente, los planes en estado 'cancelado' (incluir_cancelados):
+    un plan cancelado es un soft-delete que se conserva para auditoría pero no
+    debe aparecer en la lista operativa ni contar en KPIs financieros.
+    """
     query = db.query(AbonoPlan).join(Viaje)
 
     if viaje_id:
@@ -125,6 +141,9 @@ def listar_planes(
             Viaje.estado != "cancelado",
             Viaje.fecha_salida >= datetime.now(timezone.utc),
         )
+
+    if not incluir_cancelados:
+        query = query.filter(AbonoPlan.estado != EstadoAbonoPlan.CANCELADO)
 
     return query.order_by(AbonoPlan.creado_en.desc()).all()
 

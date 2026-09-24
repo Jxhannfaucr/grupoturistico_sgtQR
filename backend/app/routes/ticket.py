@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
 
+
 from app.database import get_db
 from app.schemas.ticket import ReservarRequest, EscanearRequest
 from app.services.ticket_service import (
